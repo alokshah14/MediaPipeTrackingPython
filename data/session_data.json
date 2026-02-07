@@ -1,0 +1,45 @@
+{
+  "last_played_date": "2026-02-06T20:32:32.913623",
+  "total_playtime_seconds": 0,
+  "sessions_today": 0,
+  "structured_sessions_completed_today": 0,
+  "last_session_number": 0,
+  "game_performance": {
+    "finger_invaders": {
+      "score_history": [],
+      "last_played": null,
+      "avg_score": 0,
+      "play_count": 0
+    },
+    "egg_catcher": {
+      "score_history": [],
+      "last_played": null,
+      "avg_score": 0,
+      "play_count": 0
+    },
+    "ping_pong": {
+      "score_history": [],
+      "last_played": null,
+      "avg_score": 0,
+      "play_count": 0
+    }
+  },
+  "current_session_plan": {
+    "state": "structured_session",
+    "session_number": 1,
+    "games": [
+      "ping_pong",
+      "egg_catcher",
+      "finger_invaders",
+      "egg_catcher",
+      "free_play"
+    ],
+    "message": "Complete all games for daily training!",
+    "game_status": {
+      "ping_pong": "Pending",
+      "egg_catcher": "Pending",
+      "finger_invaders": "Pending",
+      "free_play": "Select any game"
+    }
+  }
+}

@@ -9,24 +9,11 @@ from .constants import (
     GAME_AREA_TOP, GAME_AREA_BOTTOM, NUM_LANES, LANE_WIDTH,
     FINGER_NAMES, STARTING_LIVES, STARTING_SCORE, STARTING_DIFFICULTY,
     DIFFICULTY_LEVELS, POINTS_CORRECT_HIT, POINTS_WRONG_FINGER, POINTS_MISSILE_MISSED,
-    CORRECT_HITS_TO_INCREASE, WRONG_HITS_TO_DECREASE, HAND_MISSING_PAUSE_DELAY
+    CORRECT_HITS_TO_INCREASE, WRONG_HITS_TO_DECREASE, HAND_MISSING_PAUSE_DELAY,
+    GameMode, GameState
 )
 from .missile import Missile
 from .player_missile import PlayerMissile
-
-
-class GameState:
-    """Enumeration of game states."""
-    MENU = 'menu'
-    CALIBRATION_MENU = 'calibration_menu'
-    CALIBRATING = 'calibrating'
-    WAITING_FOR_HANDS = 'waiting_for_hands'  # Pre-game: waiting for hands in position
-    PLAYING = 'playing'
-    PAUSED = 'paused'
-    GAME_OVER = 'game_over'
-    HIGH_SCORES = 'high_scores'
-    NEW_HIGH_SCORE = 'new_high_score'
-
 
 class GameEngine:
     """Core game engine managing game logic and state."""
@@ -45,6 +32,8 @@ class GameEngine:
         # Game state
         self.state = GameState.MENU
         self.previous_state = None
+        self.current_game_mode = GameMode.FINGER_INVADERS # Default game mode
+        self.pending_game_mode = GameMode.FINGER_INVADERS # For starting games from menu
 
         # Game variables
         self.score = STARTING_SCORE
@@ -103,10 +92,21 @@ class GameEngine:
             'wrong_fingers': 0,
         }
 
+    def set_game_mode(self, mode: GameMode):
+        """Sets the current game mode and resets game if mode changed."""
+        if self.current_game_mode != mode:
+            self.current_game_mode = mode
+            self.reset_game()
+
     def start_game(self):
         """Start a new game."""
         self.reset_game()
-        self.state = GameState.PLAYING
+        if self.current_game_mode == GameMode.FINGER_INVADERS:
+            self.state = GameState.FINGER_INVADERS
+        elif self.current_game_mode == GameMode.EGG_CATCHER:
+            self.state = GameState.EGG_CATCHER
+        elif self.current_game_mode == GameMode.PING_PONG:
+            self.state = GameState.PING_PONG
 
     def pause_game(self, reason: str = "PAUSED"):
         """Pause the game."""
@@ -141,40 +141,13 @@ class GameEngine:
             'missiles_missed': [],  # List of finger names for missed missiles
         }
 
-        if self.state != GameState.PLAYING:
-            return events
-
-        current_time = pygame.time.get_ticks()
-
         # Check for hand visibility (auto-pause)
         if self.hand_tracker.should_pause_game(HAND_MISSING_PAUSE_DELAY):
-            self.pause_game("HANDS NOT DETECTED")
+            if self.state in [GameState.FINGER_INVADERS]: # Only pause Finger Invaders
+                self.pause_game("HANDS NOT DETECTED")
             return events
 
-        # Get finger presses
-        pressed_fingers = self.hand_tracker.update()
-
-        # Handle finger presses
-        for finger in pressed_fingers:
-            self._handle_finger_press(finger, events)
-
-        # Update missiles
-        self._update_missiles(dt, events)
-
-        # Spawn new missiles
-        if current_time - self.last_spawn_time >= self.spawn_interval:
-            self._spawn_missile()
-            self.last_spawn_time = current_time
-
-        # Update target fingers list
-        self.target_fingers = [m.finger_name for m in self.enemy_missiles if m.active]
-
-        # Check game over
-        if self.lives <= 0:
-            self.state = GameState.GAME_OVER
-            if self.score > self.high_score:
-                self.high_score = self.score
-
+        # The actual game logic will be updated by the respective game objects
         return events
 
     def _handle_finger_press(self, finger_name: str, events: Dict):
@@ -321,6 +294,7 @@ class GameEngine:
             'player_missiles': self.player_missiles,
             'high_score': self.high_score,
             'stats': self.stats,
+            'current_game_mode': self.current_game_mode
         }
 
     def get_highlighted_fingers(self) -> List[str]:

@@ -94,3 +94,30 @@ HAND_SCALE = 1.5
 PALM_RADIUS = 40
 FINGER_TIP_RADIUS = 15
 FINGER_JOINT_RADIUS = 8
+
+from enum import Enum
+
+class GameState(Enum):
+    MENU = 'menu'
+    CALIBRATION_MENU = 'calibration_menu'
+    CALIBRATING = 'calibrating'
+    WAITING_FOR_HANDS = 'waiting_for_hands'  # Pre-game: waiting for hands in position
+    FINGER_INVADERS = 'finger_invaders' # Original game mode
+    EGG_CATCHER = 'egg_catcher'
+    PING_PONG = 'ping_pong'
+    PLAYING = 'playing' # Generic playing state for game engines
+    PAUSED = 'paused'
+    GAME_OVER = 'game_over'
+    HIGH_SCORES = 'high_scores'
+    NEW_HIGH_SCORE = 'new_high_score'
+    GAME_SELECTION_MENU = 'game_selection_menu'
+    REWARD_DISPLAY = 'reward_display'
+
+class GameMode(Enum):
+    FINGER_INVADERS = "finger_invaders"
+    EGG_CATCHER = "egg_catcher"
+    PING_PONG = "ping_pong"
+    CALIBRATION = "calibration"
+    FREE_PLAY = "free_play"
+
+ALL_GAME_MODES = [GameMode.FINGER_INVADERS, GameMode.EGG_CATCHER, GameMode.PING_PONG]

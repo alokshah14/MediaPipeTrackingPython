@@ -18,6 +18,30 @@ A rehabilitation/training game that uses Leap Motion hand tracking to practice f
 - Saves calibration to `calibration_data.json` for future sessions
 - Option to recalibrate or use existing calibration on startup
 
+### Multi-Game Rehabilitation Platform (New!)
+This platform extends beyond Finger Invaders to offer diverse training modalities and a structured rehabilitation experience.
+
+#### New Game Modes
+- **Egg Catcher**: Players use finger presses to move a basket and catch falling eggs. Features dynamic difficulty and tracks a separate high score. Rotten eggs provide a penalty.
+- **Ping-Pong**: Players use finger presses to control a paddle, bouncing a ball against a wall. Features dynamic difficulty and tracks a separate high score.
+
+#### Structured Daily Sessions
+- **Session Planning**: Each day, a new structured session is generated, consisting of `5` game segments.
+- **Randomized Order**: Games are played in a randomized order.
+- **Dynamic Suggestions**: For the 4th session, the system suggests the game mode with the user's worst average performance. The 5th session is user-selectable.
+- **Minimum Playtime**: A daily minimum playtime of `25` minutes is encouraged.
+- **Free Play**: After completing structured sessions, users can access a free play mode to select any game.
+- **Progress Tracking**: Session performance is recorded for each game mode to inform future suggestions and track improvement.
+
+#### Reward System
+- **Unlockables**: Players can unlock cosmetic rewards (e.g., new skins, paddle designs) based on their total cumulative playtime across all game modes.
+- **Persistence**: Unlocked rewards are saved to `rewards.json`.
+
+#### Test Mode (Simulation)
+- **Keyboard Input**: Allows the game to be played without a Leap Motion device, using keyboard input to simulate finger presses.
+- **Logging**: Sessions played in test mode are logged with an `is_test_mode` flag.
+- **Visual Indicator**: A "SIMULATION MODE" visual indicator is displayed on screen when active.
+
 ### Hand Tracking
 - Real-time Leap Motion hand tracking
 - Visual representation of both hands with fingertip highlighting
@@ -33,7 +57,7 @@ A rehabilitation/training game that uses Leap Motion hand tracking to practice f
   - Difficulty levels: Easy, Medium, Hard, Expert
 
 ### Session Data Logging
-- Automatic session logging to `session_logs/` directory
+- Automatic session logging to `data/session_logs/` directory
 - Each session creates a JSON file with timestamp (e.g., `session_20240130_143052.json`)
 - Logs every finger press with:
   - Timestamp (ISO format and elapsed seconds)
@@ -55,7 +79,11 @@ LeapTrackingPython/
 │   ├── game_engine.py      # Core game loop and state management
 │   ├── missile.py          # Missile class and behavior
 │   ├── player_missile.py   # Player shot missiles
-│   └── constants.py        # Game constants and settings
+│   ├── constants.py        # Game constants and settings (includes GameMode, GameState enums)
+│   ├── egg_catcher.py      # Egg Catcher game logic
+│   ├── ping_pong.py        # Ping-Pong game logic
+│   ├── session_manager.py  # Manages structured daily sessions
+│   └── reward_manager.py   # Manages unlockable rewards
 ├── tracking/               # Leap Motion integration (renamed from leap/)
 │   ├── __init__.py
 │   ├── leap_controller.py  # Leap Motion interface using official bindings
@@ -64,9 +92,12 @@ LeapTrackingPython/
 │   ├── session_logger.py   # Session data logging for analysis
 │   ├── kinematics.py       # Biomechanical metrics processor
 │   └── trial_summary.py    # Clean CSV/JSON trial summary exporter
-├── session_logs/           # Session data files (generated)
-│   ├── session_*.json      # Full session logs with all hand tracking data
-│   └── trials_*.csv/json   # Clean trial summaries with biomechanics
+├── data/
+│   ├── session_logs/           # Session data files (generated)
+│   │   ├── session_*.json      # Full session logs with all hand tracking data
+│   │   └── trials_*.csv/json   # Clean trial summaries with biomechanics
+│   ├── calibration_data.json   # Saved calibration (generated)
+│   └── rewards.json            # Unlocked rewards (generated)
 ├── ui/
 │   ├── __init__.py
 │   ├── hand_renderer.py    # 2D Hand visualization (angle bars, labels)
@@ -77,7 +108,6 @@ LeapTrackingPython/
 │   ├── __init__.py
 │   ├── session_analyzer.py # Load and visualize session logs
 │   └── session_analysis_demo.ipynb  # Jupyter notebook with examples
-├── calibration_data.json   # Saved calibration (generated)
 ├── requirements.txt        # Python dependencies
 ├── claude.md               # This documentation file
 └── README.md               # User-facing documentation
@@ -157,7 +187,7 @@ Left Hand:              Right Hand:
 - Game requires good lighting for optimal hand tracking
 
 ## Future Enhancements
-- [ ] Multiple game modes (timed, endless, challenge)
+- [x] Multiple game modes (timed, endless, challenge)
 - [x] Sound effects and music (implemented)
 - [x] High score persistence (implemented)
 - [ ] Multiplayer support

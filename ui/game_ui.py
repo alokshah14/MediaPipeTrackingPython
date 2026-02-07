@@ -344,12 +344,13 @@ class MenuUI:
         """Update animations."""
         self.animation_phase += 0.05 * dt
 
-    def draw_main_menu(self, has_calibration: bool = False):
+    def draw_main_menu(self, has_calibration: bool = False, session_plan: Dict = None):
         """
         Draw the main menu.
 
         Args:
             has_calibration: Whether calibration data exists
+            session_plan: Dictionary containing structured session info (state, games, suggestions)
         """
         self.surface.fill(BACKGROUND)
 
@@ -362,29 +363,64 @@ class MenuUI:
             pygame.draw.circle(self.surface, (brightness, brightness, brightness + 50), (x, y), size)
 
         # Title
-        title = self.fonts['title'].render("FINGER INVADERS", True, WHITE)
-        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 120))
+        title = self.fonts['title'].render("LEAP TRACKING GAMES", True, WHITE)
+        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 80))
         self.surface.blit(title, title_rect)
 
-        subtitle = self.fonts['medium'].render("Leap Motion Edition", True, (150, 150, 200))
-        sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 180))
-        self.surface.blit(subtitle, sub_rect)
+        # Structured Session or Free Play
+        if session_plan and session_plan['state'] == 'structured_session':
+            subtitle = self.fonts['medium'].render(f"Daily Session: {session_plan['session_number']}/5", True, (150, 150, 200))
+            sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 140))
+            self.surface.blit(subtitle, sub_rect)
 
-        # Menu options
-        options = [
-            ("Start Game", "Begin playing with current calibration" if has_calibration else "Calibration required first"),
-            ("Calibrate", "Set up finger detection thresholds"),
-            ("High Scores", "View the leaderboard"),
-            ("Quit", "Exit the game"),
-        ]
+            msg = self.fonts['small'].render(session_plan['message'], True, YELLOW)
+            msg_rect = msg.get_rect(center=(WINDOW_WIDTH // 2, 180))
+            self.surface.blit(msg, msg_rect)
 
-        start_y = 300
+            # Display scheduled games
+            options = []
+            for i, game_mode in enumerate(session_plan['games']):
+                options.append((
+                    f"Play {game_mode.value.replace('_', ' ').title()}",
+                    f"({session_plan['game_status'][game_mode.value]})"
+                ))
+            options.append(("Free Play", "Play any game you like"))
+            options.append(("Quit", "Exit the application"))
+
+        elif session_plan and session_plan['state'] == 'post_structured_menu':
+            subtitle = self.fonts['medium'].render("Daily Session Complete!", True, (100, 255, 100))
+            sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 140))
+            self.surface.blit(subtitle, sub_rect)
+
+            msg = self.fonts['small'].render(session_plan['message'], True, YELLOW)
+            msg_rect = msg.get_rect(center=(WINDOW_WIDTH // 2, 180))
+            self.surface.blit(msg, msg_rect)
+
+            options = [
+                ("Calibrate", "Set up finger detection thresholds"),
+                ("Free Play", "Play any game you like"),
+                ("High Scores", "View the leaderboard"),
+                ("Quit", "Exit the application"),
+            ]
+        else: # Standard Menu
+            subtitle = self.fonts['medium'].render("Welcome!", True, (150, 150, 200))
+            sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 140))
+            self.surface.blit(subtitle, sub_rect)
+
+            options = [
+                ("Play Finger Invaders", "Begin playing with current calibration" if has_calibration else "Calibration required first"),
+                ("Calibrate", "Set up finger detection thresholds"),
+                ("High Scores", "View the leaderboard"),
+                ("Quit", "Exit the game"),
+            ]
+
+        start_y = 250
         for i, (label, description) in enumerate(options):
             y = start_y + i * 80
 
-            # Check if option is available
+            # Check if option is available (e.g., "Play Finger Invaders" without calibration)
             available = True
-            if i == 0 and not has_calibration:
+            if not has_calibration and label == "Play Finger Invaders":
                 available = False
 
             # Selection indicator
@@ -393,7 +429,7 @@ class MenuUI:
                 color = tuple(int(c * pulse) for c in (255, 255, 100))
 
                 # Draw selection box
-                box_width = 400
+                box_width = 450
                 pygame.draw.rect(
                     self.surface,
                     (50, 50, 80),
@@ -465,17 +501,54 @@ class MenuUI:
                 self.surface.blit(text, (100, y))
             y += 28
 
-    def move_selection(self, direction: int, max_options: int, has_calibration: bool):
-        """Move menu selection."""
+    def move_selection(self, direction: int, has_calibration: bool, session_plan: Dict = None):
+        """Move menu selection, adjusting for dynamic options."""
+        options = []
+        if session_plan and session_plan['state'] == 'structured_session':
+            for game_mode_enum in session_plan['games']:
+                options.append(f"Play {game_mode_enum.value.replace('_', ' ').title()}")
+            options.append("Free Play")
+            options.append("Quit")
+        elif session_plan and session_plan['state'] == 'post_structured_menu':
+            options = ["Calibrate", "Free Play", "High Scores", "Quit"]
+        else: # Standard menu
+            options = ["Play Finger Invaders", "Calibrate", "High Scores", "Quit"]
+            
+        max_options = len(options)
+
         self.selected_option = (self.selected_option + direction) % max_options
 
-        # Skip unavailable options
-        if self.selected_option == 0 and not has_calibration:
+        # Adjust for options that might be conditionally available
+        # Case 1: Standard menu, "Play Finger Invaders" selected, but no calibration
+        if (not session_plan or (session_plan and session_plan['state'] not in ['structured_session', 'post_structured_menu'])) and \
+           options[self.selected_option] == "Play Finger Invaders" and not has_calibration:
             self.selected_option = (self.selected_option + direction) % max_options
+            # Prevent infinite loop if only one option and it's disabled
+            if options[self.selected_option] == "Play Finger Invaders" and not has_calibration:
+                self.selected_option = (self.selected_option + direction) % max_options # Try once more
+
+        # Case 2: Structured session, a game is selected, but it's already been played
+        if session_plan and session_plan['state'] == 'structured_session' and \
+           self.selected_option < len(session_plan['games']) and \
+           session_plan['game_status'][session_plan['games'][self.selected_option].value] == "Played":
+            self.selected_option = (self.selected_option + direction) % max_options
+            # Prevent infinite loop
+            if self.selected_option < len(session_plan['games']) and \
+               session_plan['game_status'][session_plan['games'][self.selected_option].value] == "Played":
+                self.selected_option = (self.selected_option + direction) % max_options
+
+        # Ensure selected option is always valid (within bounds)
+        self.selected_option = max(0, min(self.selected_option, max_options - 1))
+
 
     def get_selected_option(self) -> int:
         """Get currently selected option index."""
         return self.selected_option
+
+    def add_notification(self, message: str, duration: int = 180):
+        """Adds a transient notification to be displayed."""
+        # For now, just print to console. Advanced: manage a list of notifications to draw on screen.
+        print(f"Notification: {message}")
 
     def draw_high_scores(self, high_scores: List):
         """
@@ -653,6 +726,65 @@ class MenuUI:
         inst = self.fonts['medium'].render("Press SPACE to continue", True, (150, 150, 200))
         inst_rect = inst.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 80))
         self.surface.blit(inst, inst_rect)
+
+    def draw_session_timer(self, time_left_seconds: float):
+        """
+        Draws a session timer (e.g., countdown or time elapsed).
+
+        Args:
+            time_left_seconds: Time to display in seconds (e.g., 25:00 or 0:30)
+        """
+        if time_left_seconds <= 0:
+            return
+
+        minutes = int(time_left_seconds // 60)
+        seconds = int(time_left_seconds % 60)
+        timer_text = f"{minutes:02d}:{seconds:02d}"
+
+        color = GREEN
+        if time_left_seconds <= 60:
+            color = RED
+        elif time_left_seconds <= 120:
+            color = YELLOW
+
+        timer_surface = self.fonts['large'].render(timer_text, True, color)
+        timer_rect = timer_surface.get_rect(topright=(WINDOW_WIDTH - 20, 20))
+        self.surface.blit(timer_surface, timer_rect)
+
+    def draw_reward_notification(self, new_rewards: List[str]):
+        """
+        Draw a notification for newly unlocked rewards.
+
+        Args:
+            new_rewards: List of strings describing unlocked rewards.
+        """
+        if not new_rewards:
+            return
+
+        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface.fill((0, 0, 0, 180)) # Semi-transparent dark background
+        self.surface.blit(overlay_surface, (0,0))
+
+        title = self.fonts['title'].render("REWARD UNLOCKED!", True, YELLOW)
+        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 150))
+        self.surface.blit(title, title_rect)
+
+        y_offset = WINDOW_HEIGHT // 2 - 50
+        for reward in new_rewards:
+            reward_text = self.fonts['large'].render(reward, True, GREEN)
+            reward_rect = reward_text.get_rect(center=(WINDOW_WIDTH // 2, y_offset))
+            self.surface.blit(reward_text, reward_rect)
+            y_offset += 60
+        
+        instruction_text = self.fonts['medium'].render("Press SPACE or ESC to continue", True, GRAY)
+        instruction_rect = instruction_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 150))
+        self.surface.blit(instruction_text, instruction_rect)
+
+    def draw_simulation_mode_indicator(self):
+        """Draws a 'SIMULATION MODE' indicator in the corner."""
+        indicator_text = self.fonts['small'].render("SIMULATION MODE", True, (255, 100, 100))
+        indicator_rect = indicator_text.get_rect(bottomleft=(10, WINDOW_HEIGHT - 10))
+        self.surface.blit(indicator_text, indicator_rect)
 
     def draw_hand_position_overlay(self, position_status: Dict, calibrated_positions: Dict, large: bool = False):
         """

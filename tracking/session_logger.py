@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class SessionLogger:
     """Logs all finger presses and hand tracking data during a game session."""
 
-    def __init__(self, log_directory: str = "session_logs"):
+    def __init__(self, log_directory: str = "data/session_logs"):
         """
         Initialize the session logger.
 
@@ -29,12 +29,14 @@ class SessionLogger:
         # Ensure log directory exists
         os.makedirs(log_directory, exist_ok=True)
 
-    def start_session(self, calibration_data: Dict = None):
+    def start_session(self, calibration_data: Dict = None, game_mode: str = "Unknown", is_test_mode: bool = False):
         """
         Start a new logging session.
 
         Args:
             calibration_data: Optional calibration data to include in session
+            game_mode: The name of the game being played
+            is_test_mode: Whether the session is running in test mode
         """
         self.session_start_time = time.time()
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -47,6 +49,8 @@ class SessionLogger:
             "session_id": self.session_id,
             "start_time": datetime.now().isoformat(),
             "start_timestamp": self.session_start_time,
+            "game_mode": game_mode,
+            "is_test_mode": is_test_mode,
             "calibration_used": calibration_data,
             "events": [],
             "summary": {
@@ -109,7 +113,7 @@ class SessionLogger:
             "game_state": {
                 "score": score,
                 "lives": lives,
-                "difficulty": difficulty,
+                "difficulty": difficulty or "N/A",
             },
             "hand_tracking": {
                 "left_hand": self._extract_hand_data(left_hand_data),
@@ -198,7 +202,7 @@ class SessionLogger:
             "game_state": {
                 "score": score,
                 "lives": lives,
-                "difficulty": difficulty,
+                "difficulty": difficulty or "N/A",
             },
             "hand_tracking": {
                 "left_hand": self._extract_hand_data(left_hand_data),
@@ -270,13 +274,14 @@ class SessionLogger:
 
         return extracted
 
-    def end_session(self, final_score: int, final_lives: int):
+    def end_session(self, final_score: int, final_lives: int, duration_seconds: float = 0):
         """
         End the current session and save final data.
 
         Args:
             final_score: Final game score
             final_lives: Remaining lives
+            duration_seconds: The total duration of the session in seconds
         """
         if not self.session_data:
             return
@@ -284,9 +289,7 @@ class SessionLogger:
         end_time = time.time()
         self.session_data["end_time"] = datetime.now().isoformat()
         self.session_data["end_timestamp"] = end_time
-        self.session_data["duration_seconds"] = round(
-            end_time - self.session_start_time, 2
-        )
+        self.session_data["duration_seconds"] = round(duration_seconds, 2)
         self.session_data["final_score"] = final_score
         self.session_data["final_lives"] = final_lives
 

@@ -49,6 +49,7 @@ class SessionSummary:
     start_time: str
     end_time: str
     duration_seconds: float
+    game_mode: str # New field
 
     # Trial counts
     total_trials: int
@@ -78,7 +79,7 @@ class SessionSummary:
 class TrialSummaryExporter:
     """Exports trial data to clean CSV and JSON formats."""
 
-    def __init__(self, output_directory: str = "session_logs"):
+    def __init__(self, output_directory: str = "data/session_logs"):
         """
         Initialize the exporter.
 
@@ -151,7 +152,7 @@ class TrialSummaryExporter:
 
         self.trials.append(trial)
 
-    def _calculate_summary(self, final_score: int = 0) -> SessionSummary:
+    def _calculate_summary(self, final_score: int = 0, game_mode: str = "Unknown") -> SessionSummary:
         """Calculate session summary statistics."""
         total = len(self.trials)
 
@@ -161,6 +162,7 @@ class TrialSummaryExporter:
                 start_time=self.session_start_time.isoformat() if self.session_start_time else "",
                 end_time=datetime.now().isoformat(),
                 duration_seconds=0,
+                game_mode=game_mode,
                 total_trials=0,
                 correct_trials=0,
                 wrong_finger_trials=0,
@@ -220,12 +222,13 @@ class TrialSummaryExporter:
             final_score=final_score
         )
 
-    def end_session(self, final_score: int = 0) -> Dict[str, str]:
+    def end_session(self, final_score: int = 0, game_mode: str = "Unknown") -> Dict[str, str]:
         """
         End the session and export trial summary files.
 
         Args:
             final_score: Final game score
+            game_mode: The game mode that was played
 
         Returns:
             Dictionary with paths to generated files
@@ -233,7 +236,7 @@ class TrialSummaryExporter:
         if not self.session_id:
             return {}
 
-        summary = self._calculate_summary(final_score)
+        summary = self._calculate_summary(final_score, game_mode)
 
         # Generate file paths
         base_name = f"trials_{self.session_id}"
@@ -327,6 +330,7 @@ class TrialSummaryExporter:
             writer.writerow(['start_time', summary.start_time])
             writer.writerow(['end_time', summary.end_time])
             writer.writerow(['duration_seconds', summary.duration_seconds])
+            writer.writerow(['game_mode', summary.game_mode])
             writer.writerow(['total_trials', summary.total_trials])
             writer.writerow(['correct_trials', summary.correct_trials])
             writer.writerow(['wrong_finger_trials', summary.wrong_finger_trials])

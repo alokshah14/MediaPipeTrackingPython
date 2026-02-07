@@ -6,6 +6,7 @@ import math
 import struct
 import wave
 import io
+import random
 
 
 class SoundManager:
@@ -46,6 +47,18 @@ class SoundManager:
 
             # Generate life lost sound
             self.sounds['life_lost'] = self._create_life_lost_sound()
+
+            # Generate collect sound (for Egg Catcher)
+            self.sounds['collect'] = self._create_collect_sound()
+
+            # Generate drop sound (for Egg Catcher)
+            self.sounds['drop'] = self._create_drop_sound()
+
+            # Generate paddle hit sound (for Ping Pong)
+            self.sounds['paddle_hit'] = self._create_paddle_hit_sound()
+
+            # Generate wall hit sound (for Ping Pong)
+            self.sounds['wall_hit'] = self._create_wall_hit_sound()
 
             # Generate celebration sound (for new high score)
             self.sounds['celebration'] = self._create_celebration_sound()
@@ -181,6 +194,78 @@ class SoundManager:
         sound.set_volume(0.6)
         return sound
 
+    def _create_collect_sound(self):
+        """Create a sound for collecting an item (e.g., catching an egg)."""
+        sample_rate = 44100
+        duration = 0.1  # 100ms
+        num_samples = int(sample_rate * duration)
+
+        samples = []
+        for i in range(num_samples):
+            t = i / sample_rate
+            freq = 880  # A5 note
+            envelope = math.exp(-t * 25)
+            sample = envelope * math.sin(2 * math.pi * freq * t)
+            samples.append(sample)
+
+        sound = self._create_sound_from_samples(samples, sample_rate)
+        sound.set_volume(0.4)
+        return sound
+
+    def _create_drop_sound(self):
+        """Create a sound for dropping/missing an item (e.g., missing an egg)."""
+        sample_rate = 44100
+        duration = 0.2  # 200ms
+        num_samples = int(sample_rate * duration)
+
+        samples = []
+        for i in range(num_samples):
+            t = i / sample_rate
+            freq = 110 - (50 * t / duration) # Descending low frequency
+            envelope = math.exp(-t * 10)
+            sample = envelope * (0.8 * math.sin(2 * math.pi * freq * t) + 0.2 * random.uniform(-1,1)) # Add some noise
+            samples.append(sample)
+
+        sound = self._create_sound_from_samples(samples, sample_rate)
+        sound.set_volume(0.5)
+        return sound
+
+    def _create_paddle_hit_sound(self):
+        """Create a sound for the ball hitting the paddle in Ping Pong."""
+        sample_rate = 44100
+        duration = 0.08  # 80ms
+        num_samples = int(sample_rate * duration)
+
+        samples = []
+        for i in range(num_samples):
+            t = i / sample_rate
+            freq = 1200 # High pitched, sharp sound
+            envelope = math.exp(-t * 50)
+            sample = envelope * math.sin(2 * math.pi * freq * t)
+            samples.append(sample)
+
+        sound = self._create_sound_from_samples(samples, sample_rate)
+        sound.set_volume(0.7)
+        return sound
+
+    def _create_wall_hit_sound(self):
+        """Create a sound for the ball hitting a wall in Ping Pong."""
+        sample_rate = 44100
+        duration = 0.05  # 50ms
+        num_samples = int(sample_rate * duration)
+
+        samples = []
+        for i in range(num_samples):
+            t = i / sample_rate
+            freq = 600 # Lower pitched than paddle hit
+            envelope = math.exp(-t * 60)
+            sample = envelope * math.sin(2 * math.pi * freq * t)
+            samples.append(sample)
+
+        sound = self._create_sound_from_samples(samples, sample_rate)
+        sound.set_volume(0.6)
+        return sound
+
     def _create_celebration_sound(self):
         """Create a celebration/fanfare sound effect for high scores."""
         sample_rate = 44100
@@ -250,6 +335,22 @@ class SoundManager:
     def play_celebration(self):
         """Play the celebration sound."""
         self.play('celebration')
+
+    def play_collect(self):
+        """Play the collect sound (e.g., egg caught)."""
+        self.play('collect')
+
+    def play_drop(self):
+        """Play the drop sound (e.g., egg missed)."""
+        self.play('drop')
+
+    def play_paddle_hit(self):
+        """Play the paddle hit sound."""
+        self.play('paddle_hit')
+
+    def play_wall_hit(self):
+        """Play the wall hit sound."""
+        self.play('wall_hit')
 
     def set_volume(self, volume: float):
         """Set master volume (0.0 to 1.0)."""
