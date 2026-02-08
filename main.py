@@ -450,7 +450,7 @@ class FingerInvaders:
 
         # Log the session
         self.session_logger.end_session(score, lives, session_duration_seconds)
-        self.trial_summary.end_session(score)
+        self.trial_summary.end_session(score, game_mode=game_mode.value)
 
         # Record session in session manager
         self.session_manager.record_session_play(game_mode, score, session_duration_seconds)

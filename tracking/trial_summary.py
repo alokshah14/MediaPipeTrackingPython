@@ -210,6 +210,7 @@ class TrialSummaryExporter:
             start_time=self.session_start_time.isoformat() if self.session_start_time else "",
             end_time=end_time.isoformat(),
             duration_seconds=round(duration, 2),
+            game_mode=game_mode,
             total_trials=total,
             correct_trials=total - wrong_finger_count,
             wrong_finger_trials=wrong_finger_count,

@@ -342,12 +342,53 @@ class EggCatcher:
                 (x, GAME_AREA_TOP + 50), (x, GAME_AREA_BOTTOM), 1
             )
 
-        # Draw finger labels at bottom
-        font = pygame.font.Font(None, 24)
+        # Draw baskets in each lane
         for i, name in enumerate(FINGER_DISPLAY_NAMES):
             x = (i * LANE_WIDTH) + (LANE_WIDTH // 2)
+            basket_w = LANE_WIDTH - 16
+            basket_h = 30
+            basket_y = CATCH_ZONE_BOTTOM - basket_h - 8
+
+            # Highlight basket if an egg for this lane is in the catch zone
+            has_target = any(
+                egg.lane == i and egg.in_catch_zone for egg in self.eggs
+            )
+
+            if has_target:
+                basket_color = (160, 120, 60)
+                rim_color = (220, 180, 80)
+            else:
+                basket_color = (100, 70, 40)
+                rim_color = (140, 100, 60)
+
+            # Basket body (trapezoid shape)
+            taper = 8
+            points = [
+                (x - basket_w // 2 + taper, basket_y),           # top-left
+                (x + basket_w // 2 - taper, basket_y),           # top-right
+                (x + basket_w // 2, basket_y + basket_h),        # bottom-right
+                (x - basket_w // 2, basket_y + basket_h),        # bottom-left
+            ]
+            pygame.draw.polygon(surface, basket_color, points)
+            pygame.draw.polygon(surface, rim_color, points, 2)
+
+            # Basket rim (thicker top edge)
+            pygame.draw.line(surface, rim_color,
+                             (x - basket_w // 2 + taper - 2, basket_y),
+                             (x + basket_w // 2 - taper + 2, basket_y), 3)
+
+            # Weave pattern (horizontal lines)
+            for row in range(1, 4):
+                ly = basket_y + row * (basket_h // 4)
+                frac = row / 4
+                lx1 = x - basket_w // 2 + taper * (1 - frac)
+                lx2 = x + basket_w // 2 - taper * (1 - frac)
+                pygame.draw.line(surface, rim_color, (int(lx1), ly), (int(lx2), ly), 1)
+
+            # Finger label below basket
+            font = pygame.font.Font(None, 22)
             label = font.render(name, True, (150, 150, 180))
-            label_rect = label.get_rect(center=(x, GAME_AREA_BOTTOM - 15))
+            label_rect = label.get_rect(center=(x, basket_y + basket_h + 12))
             surface.blit(label, label_rect)
 
         # Draw eggs
