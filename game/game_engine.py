@@ -15,6 +15,10 @@ from .constants import (
 from .missile import Missile
 from .player_missile import PlayerMissile
 
+# Time required to complete this game (in seconds)
+REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes
+
+
 class GameEngine:
     """Core game engine managing game logic and state."""
 
@@ -40,6 +44,14 @@ class GameEngine:
         self.lives = STARTING_LIVES
         self.difficulty = STARTING_DIFFICULTY
         self.high_score = 0
+
+        # Time tracking (for time-based progression)
+        self.session_start_time = 0
+        self.elapsed_time = 0.0  # Seconds played this session
+        self.previous_time = 0.0  # Time already accumulated from previous sessions
+        self.required_time = REQUIRED_PLAY_TIME
+        self.session_complete = False
+        self.game_over = False
 
         # Difficulty tracking
         self.correct_streak = 0
@@ -69,6 +81,18 @@ class GameEngine:
             'wrong_fingers': 0,
         }
 
+    def set_previous_time(self, seconds: float):
+        """Set the accumulated time from previous sessions."""
+        self.previous_time = seconds
+
+    def get_total_time(self) -> float:
+        """Get total time played (previous + current session)."""
+        return self.previous_time + self.elapsed_time
+
+    def get_remaining_time(self) -> float:
+        """Get remaining time to complete this game."""
+        return max(0, self.required_time - self.get_total_time())
+
     def reset_game(self):
         """Reset game to starting state."""
         self.score = STARTING_SCORE
@@ -77,6 +101,12 @@ class GameEngine:
         self.difficulty_index = 0
         self.correct_streak = 0
         self.wrong_streak = 0
+
+        # Time tracking
+        self.session_start_time = pygame.time.get_ticks()
+        self.elapsed_time = 0.0
+        self.session_complete = False
+        self.game_over = False
 
         self.enemy_missiles.clear()
         self.player_missiles.clear()
@@ -139,15 +169,49 @@ class GameEngine:
             'difficulty_changed': False,
             'finger_presses': [],  # List of {finger, target, correct}
             'missiles_missed': [],  # List of finger names for missed missiles
+            'time_complete': False,
         }
 
-        # Check for hand visibility (auto-pause)
+        if self.session_complete:
+            return events
+
+        # Update elapsed time
+        current_time = pygame.time.get_ticks()
+        self.elapsed_time = (current_time - self.session_start_time) / 1000.0
+
+        # Check if time requirement met
+        if self.get_total_time() >= self.required_time:
+            self.session_complete = True
+            self.game_over = True
+            events['time_complete'] = True
+            return events
+
+        # Check for hand visibility (auto-pause) - only in non-test mode
         if self.hand_tracker.should_pause_game(HAND_MISSING_PAUSE_DELAY):
-            if self.state in [GameState.FINGER_INVADERS]: # Only pause Finger Invaders
+            if self.state in [GameState.FINGER_INVADERS]:
                 self.pause_game("HANDS NOT DETECTED")
             return events
 
-        # The actual game logic will be updated by the respective game objects
+        # Spawn missiles
+        if current_time - self.last_spawn_time > self.spawn_interval:
+            self._spawn_missile()
+            self.last_spawn_time = current_time
+
+        # Update target fingers
+        self.target_fingers = [m.finger_name for m in self.enemy_missiles if m.active]
+
+        # Check for finger presses
+        pressed_fingers = self.hand_tracker.update()
+        for finger in pressed_fingers:
+            self._handle_finger_press(finger, events)
+
+        # Update missiles
+        self._update_missiles(dt, events)
+
+        # Check for game over (time-based, not lives)
+        if self.game_over:
+            self.state = GameState.GAME_OVER
+
         return events
 
     def _handle_finger_press(self, finger_name: str, events: Dict):
@@ -218,11 +282,9 @@ class GameEngine:
             missile.update(dt)
 
             if missile.reached_bottom:
-                # Player missed this missile
-                self.lives -= 1
+                # Player missed this missile - no lives lost, just score penalty
                 self.score += POINTS_MISSILE_MISSED
                 self.score = max(0, self.score)
-                events['life_lost'] = True
                 events['missiles_missed'].append(missile.finger_name)
                 self.stats['missiles_missed'] += 1
                 self.enemy_missiles.remove(missile)
@@ -294,7 +356,12 @@ class GameEngine:
             'player_missiles': self.player_missiles,
             'high_score': self.high_score,
             'stats': self.stats,
-            'current_game_mode': self.current_game_mode
+            'current_game_mode': self.current_game_mode,
+            'elapsed_time': self.elapsed_time,
+            'total_time': self.get_total_time(),
+            'remaining_time': self.get_remaining_time(),
+            'game_over': self.game_over,
+            'session_complete': self.session_complete,
         }
 
     def get_highlighted_fingers(self) -> List[str]:

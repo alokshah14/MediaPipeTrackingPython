@@ -635,3 +635,70 @@ analyzer.animate_session(save_path='session_replay.gif')
    - Colored bars at top of each lane (blue vs green)
    - Target zone line at bottom split-colored by side
    - Stars in background tinted by side
+
+### 2026-02-07
+
+#### Ping Pong Bug Fixes
+**User Report**: Ball doesn't bounce back on correct press; ball disappears and never respawns; hit zone too small
+
+**Root Cause**: Critical logic bug in `ball_in_zone` tracking. When ball left the narrow 60px hit zone (going downward), `ball_in_zone` was immediately set to `False`. This created a dead zone where:
+- Finger presses were ignored (checked `ball_in_zone` first)
+- Miss detection required `ball_in_zone` to be `True`, so it never triggered
+- Ball fell off screen permanently
+
+**Fixes** in `game/ping_pong.py`:
+
+1. **Hit zone enlarged**: 60px → 150px (`HIT_ZONE_TOP = GAME_AREA_BOTTOM - 150`)
+2. **Fixed zone tracking logic**: `ball_in_zone` now stays `True` from zone entry until ball is either hit back, missed (past bottom), or bounced above zone
+3. **Miss detection decoupled**: Ball going past `GAME_AREA_BOTTOM` always triggers reset regardless of tracking state
+4. **Ball speed increase made noticeable**: Bounce speed boost 5% → 15%, difficulty bumps every 3 rallies (was 5), max multiplier 2.5 (was 2.0)
+5. **Speed indicator added**: On-screen "Speed: X%" with color-coded bar (green → red)
+6. **Thicker paddles**: 8px → 14px for better visibility
+
+#### Cmd+W/Cmd+Q Quit Support
+**User Report**: Pressing Cmd+W on macOS freezes the pygame window
+
+**Fix** in `main.py`:
+- Added `pygame.KMOD_META` + `K_w`/`K_q` detection in `_handle_keydown()`
+- Sets `self.running = False` for clean shutdown
+
+#### Full Metrics Tracking for Ping Pong & Egg Catcher
+**User Request**: All games should track biomechanical metrics; collect reaction time both from zone entry AND from object appearance
+
+**Problem**: Only Finger Invaders had kinematics/session logging. Ping Pong and Egg Catcher only did UI feedback (score pulses/sounds) with no data logging.
+
+**Implementation** - Dual Reaction Time System:
+
+For Ping Pong and Egg Catcher, reaction time is measured two ways:
+- **`reaction_time_from_appear_ms`**: Time from when ball resets/egg spawns (top of screen) to press
+- **`reaction_time_from_zone_ms`**: Time from when ball/egg enters the hit/catch zone to press
+- Finger Invaders keeps its original `reaction_time_ms` (from missile spawn); zone RT is 0
+
+**Files Changed**:
+
+1. **tracking/kinematics.py**:
+   - `TrialMetrics` dataclass: Added `reaction_time_from_zone_ms` and `reaction_time_from_appear_ms`
+   - `calculate_trial_metrics()`: New optional `zone_enter_time_ms` parameter; computes both RTs
+
+2. **tracking/trial_summary.py**:
+   - `TrialRecord`: Added both new RT fields
+   - CSV/JSON export includes both columns: `reaction_time_from_zone_ms`, `reaction_time_from_appear_ms`
+
+3. **tracking/session_logger.py**:
+   - Biomechanics section logs both RT values
+
+4. **game/ping_pong.py**:
+   - `Ball.reset()`: Records `appear_time_ms`
+   - `PingPong`: Tracks `zone_enter_time_ms` (set when ball first enters hit zone)
+   - Finger press events include `press_time_ms`, `ball_appear_time_ms`, `zone_enter_time_ms`
+   - Missed ball events include `missed_target` finger name
+
+5. **game/egg_catcher.py**:
+   - `Egg`: Added `zone_enter_time_ms` (set on first entry to catch zone)
+   - Finger press events include `press_time_ms`, `egg_spawn_time_ms`, `zone_enter_time_ms`
+   - Missed egg events now include `target_finger` name (changed from plain lane int to dict)
+
+6. **main.py** - Full metrics pipeline for both games:
+   - **Egg Catcher update loop**: Calculates kinematics, logs to session_logger, records to trial_summary, shows clean trial indicator, logs missed eggs
+   - **Ping Pong update loop**: Same full pipeline — kinematics, session logging, trial summary, clean trial display, logs missed balls
+   - Both now match Finger Invaders' level of data collection

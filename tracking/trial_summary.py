@@ -25,6 +25,8 @@ class TrialRecord:
 
     # Timing
     reaction_time_ms: float
+    reaction_time_from_zone_ms: float  # From zone entry (pong/egg; 0 for invaders)
+    reaction_time_from_appear_ms: float  # From object appearance
 
     # Position-based metrics (raw 3D fingertip movement)
     motion_leakage_ratio: float
@@ -132,6 +134,8 @@ class TrialSummaryExporter:
             pressed_finger=pressed_finger,
             is_wrong_finger=trial_metrics.is_wrong_finger,
             reaction_time_ms=round(trial_metrics.reaction_time_ms, 2),
+            reaction_time_from_zone_ms=round(trial_metrics.reaction_time_from_zone_ms, 2),
+            reaction_time_from_appear_ms=round(trial_metrics.reaction_time_from_appear_ms, 2),
             # Position-based metrics
             motion_leakage_ratio=round(trial_metrics.motion_leakage_ratio, 4),
             target_path_length_mm=round(trial_metrics.target_path_length, 2),
@@ -287,6 +291,8 @@ class TrialSummaryExporter:
                 'pressed_finger',
                 'is_wrong_finger',
                 'reaction_time_ms',
+                'reaction_time_from_zone_ms',
+                'reaction_time_from_appear_ms',
                 'coupled_keypress',
                 # Position-based
                 'pos_mlr',
@@ -310,6 +316,8 @@ class TrialSummaryExporter:
                     trial.pressed_finger,
                     trial.is_wrong_finger,
                     trial.reaction_time_ms,
+                    trial.reaction_time_from_zone_ms,
+                    trial.reaction_time_from_appear_ms,
                     trial.coupled_keypress,
                     # Position-based
                     trial.motion_leakage_ratio,

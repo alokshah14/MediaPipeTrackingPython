@@ -11,7 +11,9 @@ from game.constants import FINGER_NAMES, FINGER_PRESS_ANGLE_THRESHOLD
 class TrialMetrics:
     """Biomechanical metrics for a single trial (finger press event)."""
     # Timing
-    reaction_time_ms: float  # Time from missile spawn to press
+    reaction_time_ms: float  # Primary: time from stimulus appear/spawn to press
+    reaction_time_from_zone_ms: float  # Time from zone entry to press (pong/egg; 0 for invaders)
+    reaction_time_from_appear_ms: float  # Time from object appearance to press (same as reaction_time_ms)
 
     # Correctness
     target_finger: str
@@ -56,7 +58,8 @@ class KinematicsProcessor:
         press_timestamp_ms: float,
         target_finger: str,
         pressed_finger: str,
-        missile_spawn_time_ms: float
+        missile_spawn_time_ms: float,
+        zone_enter_time_ms: float = 0
     ) -> TrialMetrics:
         """
         Calculate all biomechanical metrics for a trial.
@@ -65,7 +68,8 @@ class KinematicsProcessor:
             press_timestamp_ms: Timestamp when the finger press was detected
             target_finger: The finger assigned to the missile
             pressed_finger: The finger the player actually pressed
-            missile_spawn_time_ms: Timestamp when the missile was spawned
+            missile_spawn_time_ms: Timestamp when the missile/ball/egg appeared
+            zone_enter_time_ms: Timestamp when object entered hit/catch zone (0 if N/A)
 
         Returns:
             TrialMetrics object containing all calculated metrics
@@ -77,8 +81,10 @@ class KinematicsProcessor:
             self.WINDOW_AFTER_MS
         )
 
-        # Calculate reaction time
+        # Calculate reaction times
         reaction_time_ms = press_timestamp_ms - missile_spawn_time_ms
+        reaction_time_from_appear_ms = reaction_time_ms
+        reaction_time_from_zone_ms = (press_timestamp_ms - zone_enter_time_ms) if zone_enter_time_ms > 0 else 0
 
         # Calculate path lengths for all fingers
         path_lengths = self._calculate_all_path_lengths(frames)
@@ -132,6 +138,8 @@ class KinematicsProcessor:
 
         return TrialMetrics(
             reaction_time_ms=reaction_time_ms,
+            reaction_time_from_zone_ms=reaction_time_from_zone_ms,
+            reaction_time_from_appear_ms=reaction_time_from_appear_ms,
             target_finger=target_finger,
             pressed_finger=pressed_finger,
             is_wrong_finger=is_wrong_finger,

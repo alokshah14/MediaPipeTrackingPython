@@ -9,10 +9,15 @@ a specific finger, and players must press the correct finger to destroy it.
 
 import pygame
 import sys
+import signal
+import atexit
 from typing import Optional
 
 # Initialize pygame
 pygame.init()
+
+# Global flag for clean shutdown
+_shutdown_requested = False
 
 # Import game modules
 from game.constants import (
@@ -220,35 +225,53 @@ class FingerInvaders:
 
     def run(self):
         """Main game loop."""
-        while self.running:
-            dt = self.clock.tick(FPS) / 16.67  # Normalize to 60fps
+        global _shutdown_requested
 
-            # Handle events
-            self._handle_events()
+        # Set up signal handler for clean shutdown on Mac
+        def signal_handler(signum, frame):
+            global _shutdown_requested
+            _shutdown_requested = True
+            self.running = False
 
-            # Update
-            self._update(dt)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
-            # Render
-            # --- START 2D Pygame Rendering ---
-            # Clear the off-screen 2D surface with transparent black
-            self.pygame_2d_surface.fill((0, 0, 0, 0))
+        try:
+            while self.running and not _shutdown_requested:
+                dt = self.clock.tick(FPS) / 16.67  # Normalize to 60fps
 
-            self._render()  # Draw to self.pygame_2d_surface
+                # Handle events
+                self._handle_events()
 
-            # --- OpenGL Combined Rendering ---
-            # Clear the OpenGL buffers
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+                # Check for shutdown after events
+                if not self.running or _shutdown_requested:
+                    break
 
-            # Draw 3D hands first (in the hand area viewport)
-            self.hand_renderer.draw()
+                # Update
+                self._update(dt)
 
-            # Then overlay the 2D Pygame surface on top (with transparency)
-            self._draw_2d_overlay_with_opengl()
+                # Render
+                # --- START 2D Pygame Rendering ---
+                # Clear the off-screen 2D surface with transparent black
+                self.pygame_2d_surface.fill((0, 0, 0, 0))
 
-            pygame.display.flip()
+                self._render()  # Draw to self.pygame_2d_surface
 
-        self._cleanup()
+                # --- OpenGL Combined Rendering ---
+                # Clear the OpenGL buffers
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+                # Draw 3D hands first (in the hand area viewport)
+                self.hand_renderer.draw()
+
+                # Then overlay the 2D Pygame surface on top (with transparency)
+                self._draw_2d_overlay_with_opengl()
+
+                pygame.display.flip()
+        except Exception as e:
+            print(f"Error in game loop: {e}")
+        finally:
+            self._cleanup()
 
     def _handle_events(self):
         """Handle pygame events."""
@@ -265,6 +288,12 @@ class FingerInvaders:
     def _handle_keydown(self, event):
         """Handle key press events."""
         state = self.game_engine.state
+
+        # Cmd+W / Cmd+Q to quit (macOS)
+        mods = pygame.key.get_mods()
+        if (mods & pygame.KMOD_META) and event.key in (pygame.K_w, pygame.K_q):
+            self.running = False
+            return
 
         # Global keys
         if event.key == pygame.K_m:
@@ -331,15 +360,17 @@ class FingerInvaders:
 
         # Menu navigation
         elif state == GameState.MENU:
+            session_plan = self.session_manager.get_session_plan()
             if event.key == pygame.K_UP:
-                self.menu_ui.move_selection(-1, 4, self.calibration.has_calibration())
+                self.menu_ui.move_selection(-1, 4, self.calibration.has_calibration(), session_plan)
             elif event.key == pygame.K_DOWN:
-                self.menu_ui.move_selection(1, 4, self.calibration.has_calibration())
+                self.menu_ui.move_selection(1, 4, self.calibration.has_calibration(), session_plan)
             elif event.key == pygame.K_RETURN:
                 self._handle_menu_selection()
 
         # Keyboard simulation for finger presses (in simulation mode)
-        elif state == GameState.PLAYING or state == GameState.CALIBRATING:
+        elif state in (GameState.PLAYING, GameState.CALIBRATING, GameState.FINGER_INVADERS,
+                       GameState.EGG_CATCHER, GameState.PING_PONG):
             if isinstance(self.leap_controller, SimulatedLeapController):
                 if event.key in self.key_finger_map:
                     finger = self.key_finger_map[event.key]
@@ -358,11 +389,22 @@ class FingerInvaders:
         self.game_engine.set_game_mode(game_mode)
 
         if game_mode == GameMode.FINGER_INVADERS:
+            # Load previous playtime for time-based progression
+            previous_time = self.session_manager.get_game_playtime(GameMode.FINGER_INVADERS)
+            self.game_engine.set_previous_time(previous_time)
             self.game_engine.start_game()
         elif game_mode == GameMode.EGG_CATCHER:
+            # Load previous playtime
+            previous_time = self.session_manager.get_game_playtime(GameMode.EGG_CATCHER)
+            self.egg_catcher_game.set_previous_time(previous_time)
             self.egg_catcher_game.start_game()
+            self.game_engine.state = GameState.EGG_CATCHER
         elif game_mode == GameMode.PING_PONG:
+            # Load previous playtime
+            previous_time = self.session_manager.get_game_playtime(GameMode.PING_PONG)
+            self.ping_pong_game.set_previous_time(previous_time)
             self.ping_pong_game.start_game()
+            self.game_engine.state = GameState.PING_PONG
         
         # Reset session timer
         self.session_timer = 0
@@ -382,14 +424,36 @@ class FingerInvaders:
         session_duration_ms = pygame.time.get_ticks() - self.session_start_time
         session_duration_seconds = session_duration_ms / 1000
 
-        game_state = self.game_engine.get_game_state()
-        score = game_state['score']
         game_mode = self.game_engine.current_game_mode
-        lives = game_state.get('lives', 0) # Lives might not be present in all game states
+
+        # Get game-specific state
+        if game_mode == GameMode.FINGER_INVADERS:
+            game_state = self.game_engine.get_game_state()
+            score = game_state['score']
+            # Save accumulated playtime for this game
+            self.session_manager.add_game_playtime(game_mode, self.game_engine.elapsed_time)
+        elif game_mode == GameMode.EGG_CATCHER:
+            game_state = self.egg_catcher_game.get_game_state()
+            score = game_state['score']
+            # Save accumulated playtime for this game
+            self.session_manager.add_game_playtime(game_mode, self.egg_catcher_game.elapsed_time)
+        elif game_mode == GameMode.PING_PONG:
+            game_state = self.ping_pong_game.get_game_state()
+            score = game_state['score']
+            # Save accumulated playtime for this game
+            self.session_manager.add_game_playtime(game_mode, self.ping_pong_game.elapsed_time)
+        else:
+            game_state = self.game_engine.get_game_state()
+            score = game_state['score']
+
+        lives = game_state.get('lives', 0)
 
         # Log the session
         self.session_logger.end_session(score, lives, session_duration_seconds)
         self.trial_summary.end_session(score)
+
+        # Record session in session manager
+        self.session_manager.record_session_play(game_mode, score, session_duration_seconds)
 
         # Update total playtime for rewards
         unlocked_rewards = self.reward_manager.add_playtime(session_duration_seconds)
@@ -409,29 +473,36 @@ class FingerInvaders:
         """Handle menu option selection."""
         option = self.menu_ui.get_selected_option()
         session_plan = self.session_manager.get_session_plan()
-        
+
         # Check for new day and update session plan if needed
         if self.session_manager.new_day_check():
             session_plan = self.session_manager.get_session_plan()
         
         # Determine actual selected item based on menu state
         if session_plan['state'] == 'structured_session':
-            if option >= len(session_plan['games']):
-                # Free play or quit
-                actual_selection = option - len(session_plan['games'])
-                if actual_selection == 0: # Free Play
-                    self.game_engine.state = GameState.GAME_SELECTION_MENU
-                elif actual_selection == 1: # Quit
-                    self.running = False
-            else:
-                # Structured game selection
-                selected_game_mode = session_plan['games'][option]
-                if selected_game_mode == GameMode.CALIBRATION:
-                    self.game_engine.state = GameState.CALIBRATION_MENU
+            # Options: Calibrate, Game1, Game2, ..., Quit
+            if option == 0:  # Calibrate
+                self.game_engine.state = GameState.CALIBRATION_MENU
+            elif option <= len(session_plan['games']):
+                # Game selection (option 1 = first game, etc.)
+                game_index = option - 1
+                selected_game_mode = session_plan['games'][game_index]
+
+                # Check if this game is unlocked (first incomplete game or already played)
+                first_incomplete_idx = self._get_first_incomplete_game_index(session_plan)
+                if game_index > first_incomplete_idx:
+                    # Game is locked - don't allow selection
+                    return
+
+                # In simulation mode, skip waiting for hands
+                if self.is_test_mode:
+                    self._start_game(selected_game_mode)
                 else:
                     self.game_engine.state = GameState.WAITING_FOR_HANDS
                     self.waiting_countdown = None
                     self.game_engine.pending_game_mode = selected_game_mode
+            else:  # Quit
+                self.running = False
         elif session_plan['state'] == 'post_structured_menu':
             if option == 0: # Calibrate
                 self.game_engine.state = GameState.CALIBRATION_MENU
@@ -443,15 +514,27 @@ class FingerInvaders:
                 self.running = False
         else: # Main menu logic (e.g., initial launch, no structured session)
             if option == 0 and self.calibration.has_calibration(): # Play Finger Invaders (default)
-                self.game_engine.state = GameState.WAITING_FOR_HANDS
-                self.waiting_countdown = None
-                self.game_engine.pending_game_mode = GameMode.FINGER_INVADERS
+                # In simulation mode, skip waiting for hands
+                if self.is_test_mode:
+                    self._start_game(GameMode.FINGER_INVADERS)
+                else:
+                    self.game_engine.state = GameState.WAITING_FOR_HANDS
+                    self.waiting_countdown = None
+                    self.game_engine.pending_game_mode = GameMode.FINGER_INVADERS
             elif option == 1: # Calibrate
                 self.game_engine.state = GameState.CALIBRATION_MENU
             elif option == 2: # High Scores
                 self.game_engine.state = GameState.HIGH_SCORES
             elif option == 3: # Quit
                 self.running = False
+
+    def _get_first_incomplete_game_index(self, session_plan: dict) -> int:
+        """Get the index of the first game that hasn't been played yet."""
+        for i, game_mode in enumerate(session_plan['games']):
+            status = session_plan['game_status'].get(game_mode.value, "Pending")
+            if status != "Played":
+                return i
+        return len(session_plan['games'])  # All games completed
 
 
 
@@ -581,13 +664,10 @@ class FingerInvaders:
             elif events['score_change'] < 0:
                 self.game_ui.trigger_score_pulse(False)
 
-            if events['life_lost']:
-                self.game_ui.trigger_lives_flash()
-                self.sound_manager.play_life_lost()
-
-                # Check if game just ended - save high score
-                if self.game_engine.state == GameState.GAME_OVER:
-                    self._end_session()
+            # Check if game completed (time-based)
+            if self.game_engine.game_over:
+                self.game_engine.state = GameState.GAME_OVER
+                self._end_session()
 
             for pos in events['missile_destroyed']:
                 self.game_ui.add_explosion(pos[0], pos[1])
@@ -605,16 +685,138 @@ class FingerInvaders:
 
         elif state == GameState.EGG_CATCHER:
             events = self.egg_catcher_game.update(dt)
-            # Handle events and logging similar to FINGER_INVADERS
-            # ... (implement event handling for egg catcher) ...
+
+            # Get hand data for logging
+            hand_data = self.leap_controller.update()
+            game_state = self.egg_catcher_game.get_game_state()
+
+            # Log finger press events with biomechanical metrics
+            for press_event in events.get('finger_presses', []):
+                trial_metrics = None
+                if press_event.get('target'):
+                    trial_metrics = self.kinematics.calculate_trial_metrics(
+                        press_timestamp_ms=press_event['press_time_ms'],
+                        target_finger=press_event['target'],
+                        pressed_finger=press_event['finger'],
+                        missile_spawn_time_ms=press_event['egg_spawn_time_ms'],
+                        zone_enter_time_ms=press_event['zone_enter_time_ms']
+                    )
+
+                    if trial_metrics.is_clean_trial:
+                        self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+
+                    self.trial_summary.record_trial(
+                        target_finger=press_event['target'],
+                        pressed_finger=press_event['finger'],
+                        trial_metrics=trial_metrics
+                    )
+
+                self.session_logger.log_finger_press(
+                    finger_pressed=press_event['finger'],
+                    target_finger=press_event.get('target'),
+                    is_correct=press_event['correct'],
+                    left_hand_data=hand_data.get('left'),
+                    right_hand_data=hand_data.get('right'),
+                    score=game_state['score'],
+                    lives=0,
+                    difficulty=f"x{game_state.get('difficulty', 1.0):.1f}",
+                    trial_metrics=trial_metrics
+                )
+
+                self.sound_manager.play_fire()
+
+            # Log missed eggs
+            for missed in events.get('egg_missed', []):
+                self.session_logger.log_missile_missed(
+                    target_finger=missed['target_finger'],
+                    left_hand_data=hand_data.get('left'),
+                    right_hand_data=hand_data.get('right'),
+                    score=game_state['score'],
+                    lives=0,
+                    difficulty=f"x{game_state.get('difficulty', 1.0):.1f}"
+                )
+
+            # Handle UI feedback
+            if events['score_change'] > 0:
+                self.game_ui.trigger_score_pulse(True)
+                self.sound_manager.play_hit()
+            elif events['score_change'] < 0:
+                self.game_ui.trigger_score_pulse(False)
+                self.sound_manager.play_miss()
+
+            if events['life_lost']:
+                self.game_ui.trigger_lives_flash()
+                self.sound_manager.play_life_lost()
+
             if self.egg_catcher_game.game_over:
                 self.game_engine.state = GameState.GAME_OVER
                 self._end_session()
 
         elif state == GameState.PING_PONG:
             events = self.ping_pong_game.update(dt)
-            # Handle events and logging similar to FINGER_INVADERS
-            # ... (implement event handling for ping pong) ...
+
+            # Get hand data for logging
+            hand_data = self.leap_controller.update()
+            game_state = self.ping_pong_game.get_game_state()
+
+            # Log finger press events with biomechanical metrics
+            for press_event in events.get('finger_presses', []):
+                trial_metrics = None
+                if press_event.get('target'):
+                    trial_metrics = self.kinematics.calculate_trial_metrics(
+                        press_timestamp_ms=press_event['press_time_ms'],
+                        target_finger=press_event['target'],
+                        pressed_finger=press_event['finger'],
+                        missile_spawn_time_ms=press_event['ball_appear_time_ms'],
+                        zone_enter_time_ms=press_event['zone_enter_time_ms']
+                    )
+
+                    if trial_metrics.is_clean_trial:
+                        self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+
+                    self.trial_summary.record_trial(
+                        target_finger=press_event['target'],
+                        pressed_finger=press_event['finger'],
+                        trial_metrics=trial_metrics
+                    )
+
+                self.session_logger.log_finger_press(
+                    finger_pressed=press_event['finger'],
+                    target_finger=press_event.get('target'),
+                    is_correct=press_event['correct'],
+                    left_hand_data=hand_data.get('left'),
+                    right_hand_data=hand_data.get('right'),
+                    score=game_state['score'],
+                    lives=0,
+                    difficulty=f"x{game_state.get('rally_count', 0)}",
+                    trial_metrics=trial_metrics
+                )
+
+                self.sound_manager.play_fire()
+
+            # Log missed ball
+            if events.get('ball_missed'):
+                missed_target = events.get('missed_target', 'unknown')
+                self.session_logger.log_missile_missed(
+                    target_finger=missed_target or 'unknown',
+                    left_hand_data=hand_data.get('left'),
+                    right_hand_data=hand_data.get('right'),
+                    score=game_state['score'],
+                    lives=0,
+                    difficulty=f"x{game_state.get('rally_count', 0)}"
+                )
+
+            # Handle UI feedback
+            if events['score_change'] > 0:
+                self.game_ui.trigger_score_pulse(True)
+                self.sound_manager.play_hit()
+            elif events['score_change'] < 0:
+                self.game_ui.trigger_score_pulse(False)
+                self.sound_manager.play_miss()
+
+            if events.get('ball_missed'):
+                self.sound_manager.play_miss()
+
             if self.ping_pong_game.game_over:
                 self.game_engine.state = GameState.GAME_OVER
                 self._end_session()
@@ -958,16 +1160,11 @@ class FingerInvaders:
         """Render the Egg Catcher game."""
         # Background
         self.game_ui.draw_background()
-        
+
         self.egg_catcher_game.render(self.pygame_2d_surface)
 
-        # HUD
-        self.game_ui.draw_hud(
-            self.egg_catcher_game.score,
-            self.egg_catcher_game.lives,
-            0, # Difficulty not applicable
-            0  # Streak not applicable
-        )
+        # Custom HUD for time-based game (show score only, time is rendered by the game itself)
+        self.game_ui.draw_score_only(self.egg_catcher_game.score)
         
         # Update 3D hand data (actual drawing happens in main loop after 2D overlay)
         hand_data = self.hand_tracker.get_display_data()
@@ -982,13 +1179,8 @@ class FingerInvaders:
 
         self.ping_pong_game.render(self.pygame_2d_surface)
 
-        # HUD
-        self.game_ui.draw_hud(
-            self.ping_pong_game.score,
-            self.ping_pong_game.lives,
-            0, # Difficulty not applicable
-            0  # Streak not applicable
-        )
+        # Custom HUD for time-based game
+        self.game_ui.draw_score_only(self.ping_pong_game.score)
 
         # Update 3D hand data (actual drawing happens in main loop after 2D overlay)
         hand_data = self.hand_tracker.get_display_data()
@@ -1212,14 +1404,24 @@ class FingerInvaders:
 
     def _cleanup(self):
         """Clean up resources."""
-        # End any active session
-        if self.session_logger.session_data:
-            game_state = self.game_engine.get_game_state()
-            self.session_logger.end_session(game_state['score'], game_state['lives'])
-            self.trial_summary.end_session(game_state['score'])
+        try:
+            # End any active session
+            if self.session_logger.session_data:
+                game_state = self.game_engine.get_game_state()
+                self.session_logger.end_session(game_state['score'], game_state['lives'])
+                self.trial_summary.end_session(game_state['score'])
+        except Exception as e:
+            print(f"Error ending session: {e}")
 
-        self.leap_controller.cleanup()
-        pygame.quit()
+        try:
+            self.leap_controller.cleanup()
+        except Exception as e:
+            print(f"Error cleaning up Leap controller: {e}")
+
+        try:
+            pygame.quit()
+        except Exception as e:
+            print(f"Error quitting pygame: {e}")
 
 
 def main():

@@ -125,6 +125,8 @@ class SessionLogger:
         if trial_metrics:
             event["biomechanics"] = {
                 "reaction_time_ms": round(trial_metrics.reaction_time_ms, 2),
+                "reaction_time_from_zone_ms": round(trial_metrics.reaction_time_from_zone_ms, 2),
+                "reaction_time_from_appear_ms": round(trial_metrics.reaction_time_from_appear_ms, 2),
                 "is_wrong_finger": trial_metrics.is_wrong_finger,
                 "motion_leakage_ratio": round(trial_metrics.motion_leakage_ratio, 4),
                 "target_path_length_mm": round(trial_metrics.target_path_length, 2),

@@ -66,6 +66,13 @@ class LeapController:
             self._context_manager.__enter__()
             self.connection.set_tracking_mode(leap.TrackingMode.Desktop)
             print("Leap Motion connection opened.")
+
+            # Wait briefly to see if we get any tracking data
+            import time
+            time.sleep(0.3)
+            if not self.has_device and not self.has_recent_data(max_age=1.0):
+                print("No Leap Motion device detected. Falling back to simulation mode.")
+                self.simulation_mode = True
         except Exception as e:
             print(f"Failed to connect to Leap Motion: {e}")
             self.simulation_mode = True

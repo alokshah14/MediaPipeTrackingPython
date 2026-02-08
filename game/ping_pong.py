@@ -1,158 +1,395 @@
+"""Ping Pong - Lane-based finger individuation game.
+
+Ball bounces around the screen. When it approaches the bottom,
+press the corresponding finger key to hit it back up.
+
+Time-based progression: Play for 5 minutes total to complete.
+"""
+
 import pygame
 import random
+import math
 from typing import List, Dict, Tuple
 from game.constants import (
-    WINDOW_WIDTH, WINDOW_HEIGHT, GAME_AREA_TOP, GAME_AREA_BOTTOM, FPS,
-    POINTS_CORRECT_HIT, STARTING_LIVES, GameMode
+    WINDOW_WIDTH, WINDOW_HEIGHT, GAME_AREA_TOP, GAME_AREA_BOTTOM,
+    FINGER_NAMES, FINGER_DISPLAY_NAMES, LANE_WIDTH, NUM_LANES,
+    POINTS_CORRECT_HIT, POINTS_WRONG_FINGER, GameMode
 )
 from tracking.hand_tracker import HandTracker
 
 
+# Hit zone at the bottom (150px tall for a generous reaction window)
+HIT_ZONE_TOP = GAME_AREA_BOTTOM - 150
+HIT_ZONE_BOTTOM = GAME_AREA_BOTTOM
+
+# Time required to complete this game (in seconds)
+REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes
+
+
 class Ball:
+    """Bouncing ball."""
+
     def __init__(self):
-        self.radius = 10
-        self.x = WINDOW_WIDTH // 2
-        self.y = WINDOW_HEIGHT // 2
-        self.speed = 5
-        self.dx = random.choice([-1, 1]) * self.speed
-        self.dy = random.choice([-1, 1]) * self.speed
-        self.color = (255, 255, 255) # White
-        self.rect = pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
-
-    def update(self, dt: float):
-        self.x += self.dx * dt
-        self.y += self.dy * dt
-        self.rect.center = (int(self.x), int(self.y))
-
-        # Wall collisions (top, left, right)
-        if self.y - self.radius < GAME_AREA_TOP:
-            self.y = GAME_AREA_TOP + self.radius
-            self.dy *= -1
-            # sound_manager.play_wall_hit() # Needs to be called from main
-        if self.x - self.radius < 0:
-            self.x = self.radius
-            self.dx *= -1
-            # sound_manager.play_wall_hit() # Needs to be called from main
-        if self.x + self.radius > WINDOW_WIDTH:
-            self.x = WINDOW_WIDTH - self.radius
-            self.dx *= -1
-            # sound_manager.play_wall_hit() # Needs to be called from main
-
-    def draw(self, surface: pygame.Surface):
-        pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+        self.radius = 12
+        self.reset()
 
     def reset(self):
+        """Reset ball to center with random direction."""
         self.x = WINDOW_WIDTH // 2
-        self.y = WINDOW_HEIGHT // 2
-        self.dx = random.choice([-1, 1]) * self.speed
-        self.dy = random.choice([-1, 1]) * self.speed
+        self.y = GAME_AREA_TOP + 100
+        angle = random.uniform(math.pi / 4, 3 * math.pi / 4)  # Downward
+        speed = 4.0
+        self.vx = speed * math.cos(angle)
+        self.vy = abs(speed * math.sin(angle))  # Always start going down
+        self.appear_time_ms = pygame.time.get_ticks()
 
+    def update(self, dt: float):
+        """Update ball position."""
+        self.x += self.vx * dt
+        self.y += self.vy * dt
 
-class Paddle:
-    def __init__(self):
-        self.width = 150
-        self.height = 20
-        self.x = WINDOW_WIDTH // 2
-        self.y = GAME_AREA_BOTTOM - 50
-        self.color = (100, 200, 255) # Light blue
-        self.rect = pygame.Rect(self.x - self.width // 2, self.y - self.height // 2, self.width, self.height)
+        # Bounce off walls
+        if self.x - self.radius < 0:
+            self.x = self.radius
+            self.vx = abs(self.vx)
+        elif self.x + self.radius > WINDOW_WIDTH:
+            self.x = WINDOW_WIDTH - self.radius
+            self.vx = -abs(self.vx)
 
-    def update_position(self, target_x: float):
-        self.x = target_x
-        self.rect.centerx = int(self.x)
-        # Keep paddle within bounds
-        if self.rect.left < 0:
-            self.rect.left = 0
-        if self.rect.right > WINDOW_WIDTH:
-            self.rect.right = WINDOW_WIDTH
+        # Bounce off top
+        if self.y - self.radius < GAME_AREA_TOP:
+            self.y = GAME_AREA_TOP + self.radius
+            self.vy = abs(self.vy)
+
+    def get_lane(self) -> int:
+        """Get which lane the ball is currently in."""
+        lane = int(self.x // LANE_WIDTH)
+        return max(0, min(lane, NUM_LANES - 1))
+
+    def is_in_hit_zone(self) -> bool:
+        """Check if ball is in the hit zone."""
+        return HIT_ZONE_TOP <= self.y + self.radius <= HIT_ZONE_BOTTOM
+
+    def is_missed(self) -> bool:
+        """Check if ball went past the hit zone."""
+        return self.y - self.radius > HIT_ZONE_BOTTOM
+
+    def bounce_up(self, speed_increase: float = 0.1):
+        """Bounce ball back up with slight speed increase."""
+        self.vy = -abs(self.vy) * (1 + speed_increase)
+        # Add some randomness to x velocity
+        self.vx += random.uniform(-0.5, 0.5)
+        # Cap max speed
+        max_speed = 8.0
+        speed = math.sqrt(self.vx**2 + self.vy**2)
+        if speed > max_speed:
+            self.vx = self.vx / speed * max_speed
+            self.vy = self.vy / speed * max_speed
 
     def draw(self, surface: pygame.Surface):
-        pygame.draw.rect(surface, self.color, self.rect, border_radius=5)
+        """Draw the ball."""
+        pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(surface, (200, 200, 255), (int(self.x), int(self.y)), self.radius, 2)
 
 
 class PingPong:
+    """Lane-based ping pong game for finger individuation training."""
+
     def __init__(self, hand_tracker: HandTracker, calibration_manager):
         self.hand_tracker = hand_tracker
         self.calibration = calibration_manager
         self.game_mode = GameMode.PING_PONG
 
         self.score = 0
-        self.lives = STARTING_LIVES
         self.ball = Ball()
-        self.paddle = Paddle()
         self.game_over = False
-        
-        self.difficulty_factor = 1.0 # Increases over time
+        self.session_complete = False
+
+        # Time tracking
+        self.session_start_time = 0
+        self.elapsed_time = 0.0
+        self.previous_time = 0.0
+        self.required_time = REQUIRED_PLAY_TIME
+
+        # Track current target finger
+        self.target_finger = None
+        self.ball_in_zone = False
+        self.zone_enter_time_ms = 0
+
+        # Difficulty
+        self.rally_count = 0
+        self.difficulty_multiplier = 1.0
+
+        # Statistics
+        self.stats = {
+            'total_hits': 0,
+            'correct_hits': 0,
+            'wrong_hits': 0,
+            'misses': 0,
+        }
+
+    def set_previous_time(self, seconds: float):
+        """Set the accumulated time from previous sessions."""
+        self.previous_time = seconds
+
+    def get_total_time(self) -> float:
+        """Get total time played (previous + current session)."""
+        return self.previous_time + self.elapsed_time
+
+    def get_remaining_time(self) -> float:
+        """Get remaining time to complete this game."""
+        return max(0, self.required_time - self.get_total_time())
 
     def start_game(self):
+        """Start a new game session."""
         self.score = 0
-        self.lives = STARTING_LIVES
         self.ball.reset()
         self.game_over = False
-        self.difficulty_factor = 1.0
+        self.session_complete = False
+        self.session_start_time = pygame.time.get_ticks()
+        self.elapsed_time = 0.0
+        self.target_finger = None
+        self.ball_in_zone = False
+        self.zone_enter_time_ms = 0
+        self.rally_count = 0
+        self.difficulty_multiplier = 1.0
+        self.stats = {
+            'total_hits': 0,
+            'correct_hits': 0,
+            'wrong_hits': 0,
+            'misses': 0,
+        }
 
     def update(self, dt: float) -> Dict:
+        """Update game state."""
         events = {
             'score_change': 0,
             'life_lost': False,
-            'notifications': [],
+            'finger_presses': [],
+            'ball_hit': False,
+            'ball_missed': False,
+            'time_complete': False,
         }
 
-        if self.game_over:
+        if self.session_complete:
             return events
 
-        # Update paddle position based on right index finger (or simulated input)
-        hand_data = self.hand_tracker.update()
-        right_index_tip = self.hand_tracker.get_finger_tip_position('right_index')
-        if right_index_tip:
-            # Map Leap Motion x-coordinate to screen x-coordinate
-            screen_x = int(((right_index_tip[0] + 150) / 300) * WINDOW_WIDTH)
-            self.paddle.update_position(screen_x)
-        else:
-            pass # Keep previous position
+        # Update elapsed time
+        current_time = pygame.time.get_ticks()
+        self.elapsed_time = (current_time - self.session_start_time) / 1000.0
 
+        # Check if time requirement met
+        if self.get_total_time() >= self.required_time:
+            self.session_complete = True
+            self.game_over = True
+            events['time_complete'] = True
+            return events
+
+        # Update ball
         self.ball.update(dt)
 
-        # Check for ball hitting bottom (miss)
-        if self.ball.y + self.ball.radius > GAME_AREA_BOTTOM:
-            self.lives -= 1
-            events['life_lost'] = True
-            # sound_manager.play_life_lost() # Needs to be called from main
+        # Track ball entering hit zone
+        if self.ball.is_in_hit_zone() and not self.ball_in_zone:
+            self.ball_in_zone = True
+            self.zone_enter_time_ms = pygame.time.get_ticks()
+
+        # Update target finger while ball is in zone (may drift between lanes)
+        if self.ball_in_zone and not self.ball.is_missed():
+            lane = self.ball.get_lane()
+            self.target_finger = FINGER_NAMES[lane]
+
+        # Check if ball went past the bottom (missed)
+        if self.ball.is_missed():
+            self.stats['misses'] += 1
+            events['ball_missed'] = True
+            events['missed_target'] = self.target_finger
+            self.rally_count = 0
+            self._decrease_difficulty()
             self.ball.reset()
-            if self.lives <= 0:
-                self.game_over = True
-        
-        # Check for ball-paddle collision
-        if self.ball.rect.colliderect(self.paddle.rect):
-            # Ensure ball is moving downwards before reflecting
-            if self.ball.dy > 0:
-                self.ball.dy *= -1
-                self.score += POINTS_CORRECT_HIT
-                events['score_change'] = POINTS_CORRECT_HIT
-                # sound_manager.play_paddle_hit() # Needs to be called from main
+            self.ball_in_zone = False
+            self.target_finger = None
 
-                # Increase ball speed and paddle size slightly for difficulty
-                self.ball.speed += 0.1 * self.difficulty_factor
-                self.ball.dx = (self.ball.dx / abs(self.ball.dx)) * self.ball.speed
-                self.ball.dy = (self.ball.dy / abs(self.ball.dy)) * self.ball.speed
-                self.difficulty_factor += 0.005 # Gradually increase difficulty
+        # If ball bounced back above the zone, clear zone state
+        if self.ball_in_zone and self.ball.y + self.ball.radius < HIT_ZONE_TOP:
+            self.ball_in_zone = False
+            self.target_finger = None
 
+        # Check for finger presses
+        pressed_fingers = self.hand_tracker.update()
+        for finger in pressed_fingers:
+            self._handle_finger_press(finger, events)
 
         return events
 
+    def _handle_finger_press(self, finger: str, events: Dict):
+        """Handle a finger press event."""
+        if not self.ball_in_zone:
+            return  # Ignore presses when ball not in zone
+
+        lane = self.ball.get_lane()
+        target = FINGER_NAMES[lane]
+
+        if finger == target:
+            # Correct hit!
+            self.score += POINTS_CORRECT_HIT
+            events['score_change'] = POINTS_CORRECT_HIT
+            events['ball_hit'] = True
+            self.stats['correct_hits'] += 1
+            self.stats['total_hits'] += 1
+            self.rally_count += 1
+            self._increase_difficulty()
+
+            events['finger_presses'].append({
+                'finger': finger,
+                'target': target,
+                'correct': True,
+                'press_time_ms': pygame.time.get_ticks(),
+                'ball_appear_time_ms': self.ball.appear_time_ms,
+                'zone_enter_time_ms': self.zone_enter_time_ms,
+            })
+
+            # Bounce ball back (speed increases with each hit)
+            self.ball.bounce_up(0.15 * self.difficulty_multiplier)
+            self.ball_in_zone = False
+            self.target_finger = None
+
+        else:
+            # Wrong finger
+            self.score += POINTS_WRONG_FINGER
+            events['score_change'] = POINTS_WRONG_FINGER
+            self.stats['wrong_hits'] += 1
+            self.stats['total_hits'] += 1
+            self.rally_count = 0
+            self._decrease_difficulty()
+
+            events['finger_presses'].append({
+                'finger': finger,
+                'target': target,
+                'correct': False,
+                'press_time_ms': pygame.time.get_ticks(),
+                'ball_appear_time_ms': self.ball.appear_time_ms,
+                'zone_enter_time_ms': self.zone_enter_time_ms,
+            })
+
+    def _increase_difficulty(self):
+        """Increase difficulty after correct hits."""
+        if self.rally_count % 3 == 0:
+            self.difficulty_multiplier = min(2.5, self.difficulty_multiplier + 0.15)
+
+    def _decrease_difficulty(self):
+        """Decrease difficulty after mistakes."""
+        self.difficulty_multiplier = max(0.5, self.difficulty_multiplier - 0.05)
+
     def render(self, surface: pygame.Surface):
+        """Render the game."""
+        # Draw hit zone
+        hit_zone_rect = pygame.Rect(0, HIT_ZONE_TOP, WINDOW_WIDTH, HIT_ZONE_BOTTOM - HIT_ZONE_TOP)
+        pygame.draw.rect(surface, (40, 40, 60), hit_zone_rect)
+
+        # Draw lane dividers
+        for i in range(NUM_LANES + 1):
+            x = i * LANE_WIDTH
+            color = (60, 60, 80)
+            pygame.draw.line(surface, color, (x, GAME_AREA_TOP + 50), (x, GAME_AREA_BOTTOM), 1)
+
+        # Draw finger labels and paddle indicators at bottom
+        font = pygame.font.Font(None, 24)
+        for i, name in enumerate(FINGER_DISPLAY_NAMES):
+            x = (i * LANE_WIDTH) + (LANE_WIDTH // 2)
+
+            # Draw paddle for each lane
+            paddle_width = LANE_WIDTH - 10
+            paddle_height = 14
+            paddle_rect = pygame.Rect(
+                x - paddle_width // 2,
+                HIT_ZONE_BOTTOM - paddle_height - 5,
+                paddle_width,
+                paddle_height
+            )
+
+            # Highlight the target paddle
+            if self.target_finger == FINGER_NAMES[i]:
+                pygame.draw.rect(surface, (100, 255, 100), paddle_rect)
+                pygame.draw.rect(surface, (150, 255, 150), paddle_rect, 2)
+            else:
+                pygame.draw.rect(surface, (80, 80, 120), paddle_rect)
+                pygame.draw.rect(surface, (100, 100, 140), paddle_rect, 1)
+
+            # Draw finger label
+            label = font.render(name, True, (150, 150, 180))
+            label_rect = label.get_rect(center=(x, HIT_ZONE_BOTTOM - 25))
+            surface.blit(label, label_rect)
+
+        # Draw "HIT ZONE" label
+        zone_font = pygame.font.Font(None, 28)
+        zone_label = zone_font.render("HIT ZONE - Press matching key!", True, (100, 180, 100))
+        zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, HIT_ZONE_TOP + 15))
+        surface.blit(zone_label, zone_rect)
+
+        # Highlight current lane if ball in zone
+        if self.ball_in_zone:
+            lane = self.ball.get_lane()
+            lane_x = lane * LANE_WIDTH
+            highlight_rect = pygame.Rect(lane_x, HIT_ZONE_TOP, LANE_WIDTH, HIT_ZONE_BOTTOM - HIT_ZONE_TOP)
+            highlight_surface = pygame.Surface((LANE_WIDTH, HIT_ZONE_BOTTOM - HIT_ZONE_TOP), pygame.SRCALPHA)
+            highlight_surface.fill((100, 255, 100, 50))
+            surface.blit(highlight_surface, (lane_x, HIT_ZONE_TOP))
+
+        # Draw ball
         self.ball.draw(surface)
-        self.paddle.draw(surface)
+
+        # Draw remaining time
+        remaining = self.get_remaining_time()
+        mins = int(remaining // 60)
+        secs = int(remaining % 60)
+        time_font = pygame.font.Font(None, 36)
+        time_text = f"Time Left: {mins}:{secs:02d}"
+        time_label = time_font.render(time_text, True, (255, 255, 100))
+        time_rect = time_label.get_rect(topright=(WINDOW_WIDTH - 20, GAME_AREA_TOP + 10))
+        surface.blit(time_label, time_rect)
+
+        # Draw rally count and speed
+        rally_font = pygame.font.Font(None, 28)
+        rally_text = f"Rally: {self.rally_count}"
+        rally_label = rally_font.render(rally_text, True, (180, 180, 220))
+        rally_rect = rally_label.get_rect(topleft=(20, GAME_AREA_TOP + 60))
+        surface.blit(rally_label, rally_rect)
+
+        # Draw speed indicator
+        speed = math.sqrt(self.ball.vx**2 + self.ball.vy**2)
+        speed_pct = min(speed / 8.0, 1.0)  # 8.0 is max speed
+        speed_color = (
+            int(255 * speed_pct),
+            int(255 * (1 - speed_pct)),
+            50
+        )
+        speed_text = f"Speed: {speed_pct * 100:.0f}%"
+        speed_label = rally_font.render(speed_text, True, speed_color)
+        speed_rect = speed_label.get_rect(topleft=(20, GAME_AREA_TOP + 85))
+        surface.blit(speed_label, speed_rect)
+
+        # Speed bar
+        bar_x, bar_y = 130, GAME_AREA_TOP + 88
+        bar_w, bar_h = 80, 12
+        pygame.draw.rect(surface, (40, 40, 60), (bar_x, bar_y, bar_w, bar_h))
+        pygame.draw.rect(surface, speed_color, (bar_x, bar_y, int(bar_w * speed_pct), bar_h))
+        pygame.draw.rect(surface, (100, 100, 120), (bar_x, bar_y, bar_w, bar_h), 1)
 
     def get_highlighted_fingers(self) -> List[str]:
-        # No specific fingers highlighted for Ping Pong
+        """Get fingers that should be highlighted."""
+        if self.target_finger:
+            return [self.target_finger]
         return []
 
     def get_game_state(self) -> Dict:
+        """Get current game state."""
         return {
             'score': self.score,
-            'lives': self.lives,
+            'elapsed_time': self.elapsed_time,
+            'total_time': self.get_total_time(),
+            'remaining_time': self.get_remaining_time(),
             'game_over': self.game_over,
-            'ball': self.ball,
-            'paddle': self.paddle,
+            'session_complete': self.session_complete,
+            'rally_count': self.rally_count,
+            'stats': self.stats,
         }

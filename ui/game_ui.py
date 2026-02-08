@@ -180,9 +180,26 @@ class GameUI:
             3
         )
 
+    def draw_score_only(self, score: int):
+        """Draw a minimal HUD with just the score (for time-based games)."""
+        # Background bar
+        pygame.draw.rect(self.surface, (30, 30, 50), (0, 0, WINDOW_WIDTH, GAME_AREA_TOP))
+        pygame.draw.line(self.surface, (60, 60, 100), (0, GAME_AREA_TOP), (WINDOW_WIDTH, GAME_AREA_TOP), 2)
+
+        # Score
+        score_color = SCORE_COLOR
+        if self.score_pulse > 0:
+            pulse = abs(math.sin(self.score_pulse * 5))
+            score_color = tuple(int(c + (255 - c) * pulse) for c in SCORE_COLOR)
+
+        score_label = self.fonts['small'].render("SCORE", True, HUD_TEXT)
+        score_value = self.fonts['large'].render(str(score), True, score_color)
+        self.surface.blit(score_label, (20, 15))
+        self.surface.blit(score_value, (20, 35))
+
     def draw_hud(self, score: int, lives: int, difficulty: str, streak: int = 0):
         """
-        Draw the heads-up display.
+        Draw the heads-up display (legacy, uses lives).
 
         Args:
             score: Current score
@@ -237,6 +254,66 @@ class GameUI:
             streak_text = f"Streak: {streak}"
             streak_render = self.fonts['medium'].render(streak_text, True, YELLOW)
             self.surface.blit(streak_render, (WINDOW_WIDTH // 2 - streak_render.get_width() // 2, 40))
+
+    def draw_time_hud(self, score: int, remaining_time: float, difficulty: str, streak: int = 0):
+        """
+        Draw time-based HUD (no lives, shows remaining time).
+
+        Args:
+            score: Current score
+            remaining_time: Seconds remaining
+            difficulty: Current difficulty level
+            streak: Current correct answer streak
+        """
+        # Background bar
+        pygame.draw.rect(self.surface, (30, 30, 50), (0, 0, WINDOW_WIDTH, GAME_AREA_TOP))
+        pygame.draw.line(self.surface, (60, 60, 100), (0, GAME_AREA_TOP), (WINDOW_WIDTH, GAME_AREA_TOP), 2)
+
+        # Score
+        score_color = SCORE_COLOR
+        if self.score_pulse > 0:
+            pulse = abs(math.sin(self.score_pulse * 5))
+            score_color = tuple(int(c + (255 - c) * pulse) for c in SCORE_COLOR)
+
+        score_label = self.fonts['small'].render("SCORE", True, HUD_TEXT)
+        score_value = self.fonts['large'].render(str(score), True, score_color)
+        self.surface.blit(score_label, (20, 15))
+        self.surface.blit(score_value, (20, 35))
+
+        # Time Remaining
+        mins = int(remaining_time // 60)
+        secs = int(remaining_time % 60)
+        time_text = f"{mins}:{secs:02d}"
+
+        # Color based on time remaining
+        if remaining_time > 60:
+            time_color = (255, 255, 100)  # Yellow
+        elif remaining_time > 30:
+            time_color = (255, 180, 100)  # Orange
+        else:
+            time_color = (255, 100, 100)  # Red
+
+        time_label = self.fonts['small'].render("TIME LEFT", True, HUD_TEXT)
+        time_value = self.fonts['large'].render(time_text, True, time_color)
+        self.surface.blit(time_label, (200, 15))
+        self.surface.blit(time_value, (200, 35))
+
+        # Difficulty
+        diff_color = DIFFICULTY_COLORS.get(difficulty, WHITE)
+        diff_label = self.fonts['small'].render("DIFFICULTY", True, HUD_TEXT)
+        diff_value = self.fonts['medium'].render(difficulty.upper(), True, diff_color)
+        self.surface.blit(diff_label, (WINDOW_WIDTH - 200, 15))
+        self.surface.blit(diff_value, (WINDOW_WIDTH - 200, 35))
+
+        # Streak (if any)
+        if streak > 0:
+            streak_text = f"Streak: {streak}"
+            streak_render = self.fonts['medium'].render(streak_text, True, YELLOW)
+            self.surface.blit(streak_render, (WINDOW_WIDTH // 2 - streak_render.get_width() // 2, 40))
+
+        # ESC to quit hint
+        esc_text = self.fonts['small'].render("ESC to quit", True, (100, 100, 120))
+        self.surface.blit(esc_text, (WINDOW_WIDTH - 100, 5))
 
     def trigger_score_pulse(self, positive: bool = True):
         """Trigger a score animation."""
@@ -377,14 +454,32 @@ class MenuUI:
             msg_rect = msg.get_rect(center=(WINDOW_WIDTH // 2, 180))
             self.surface.blit(msg, msg_rect)
 
-            # Display scheduled games
-            options = []
+            # Find first incomplete game
+            first_incomplete_idx = 0
             for i, game_mode in enumerate(session_plan['games']):
-                options.append((
-                    f"Play {game_mode.value.replace('_', ' ').title()}",
-                    f"({session_plan['game_status'][game_mode.value]})"
-                ))
-            options.append(("Free Play", "Play any game you like"))
+                status = session_plan['game_status'].get(game_mode.value, "Pending")
+                if status != "Played":
+                    first_incomplete_idx = i
+                    break
+            else:
+                first_incomplete_idx = len(session_plan['games'])
+
+            # Display: Calibrate, then scheduled games with lock status
+            options = []
+            options.append(("Calibrate", "Set up finger detection thresholds"))
+            for i, game_mode in enumerate(session_plan['games']):
+                status = session_plan['game_status'].get(game_mode.value, "Pending")
+                is_locked = i > first_incomplete_idx and status != "Played"
+                if is_locked:
+                    options.append((
+                        f"[LOCKED] {game_mode.value.replace('_', ' ').title()}",
+                        "Complete previous game first"
+                    ))
+                else:
+                    options.append((
+                        f"Play {game_mode.value.replace('_', ' ').title()}",
+                        f"({status})"
+                    ))
             options.append(("Quit", "Exit the application"))
 
         elif session_plan and session_plan['state'] == 'post_structured_menu':
@@ -418,13 +513,15 @@ class MenuUI:
         for i, (label, description) in enumerate(options):
             y = start_y + i * 80
 
-            # Check if option is available (e.g., "Play Finger Invaders" without calibration)
+            # Check if option is available
             available = True
             if not has_calibration and label == "Play Finger Invaders":
                 available = False
+            if "[LOCKED]" in label:
+                available = False
 
             # Selection indicator
-            if i == self.selected_option:
+            if i == self.selected_option and available:
                 pulse = abs(math.sin(self.animation_phase * 3)) * 0.3 + 0.7
                 color = tuple(int(c * pulse) for c in (255, 255, 100))
 
@@ -443,6 +540,23 @@ class MenuUI:
                     2,
                     border_radius=10
                 )
+            elif i == self.selected_option and not available:
+                # Selected but locked - show red outline
+                box_width = 450
+                pygame.draw.rect(
+                    self.surface,
+                    (40, 30, 30),
+                    (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 60),
+                    border_radius=10
+                )
+                pygame.draw.rect(
+                    self.surface,
+                    (150, 80, 80),
+                    (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 60),
+                    2,
+                    border_radius=10
+                )
+                color = (150, 80, 80)
             else:
                 color = WHITE if available else DARK_GRAY
 
@@ -501,44 +615,55 @@ class MenuUI:
                 self.surface.blit(text, (100, y))
             y += 28
 
-    def move_selection(self, direction: int, has_calibration: bool, session_plan: Dict = None):
+    def move_selection(self, direction: int, max_options: int, has_calibration: bool, session_plan: Dict = None):
         """Move menu selection, adjusting for dynamic options."""
-        options = []
         if session_plan and session_plan['state'] == 'structured_session':
-            for game_mode_enum in session_plan['games']:
-                options.append(f"Play {game_mode_enum.value.replace('_', ' ').title()}")
-            options.append("Free Play")
-            options.append("Quit")
+            # Options: Calibrate, Game1, Game2, ..., Quit
+            num_options = 1 + len(session_plan['games']) + 1  # Calibrate + games + Quit
+
+            # Find first incomplete game index
+            first_incomplete_idx = 0
+            for i, game_mode in enumerate(session_plan['games']):
+                status = session_plan['game_status'].get(game_mode.value, "Pending")
+                if status != "Played":
+                    first_incomplete_idx = i
+                    break
+            else:
+                first_incomplete_idx = len(session_plan['games'])
+
+            # Move selection
+            new_selection = (self.selected_option + direction) % num_options
+
+            # Skip locked games (games after first_incomplete_idx that aren't played)
+            attempts = 0
+            while attempts < num_options:
+                # Option 0 = Calibrate (always available)
+                # Option 1 to len(games) = Games
+                # Option len(games)+1 = Quit
+                if new_selection == 0 or new_selection == num_options - 1:
+                    break  # Calibrate and Quit are always available
+                game_idx = new_selection - 1  # Convert to game index
+                if game_idx <= first_incomplete_idx:
+                    break  # This game is unlocked
+                # Game is locked, skip it
+                new_selection = (new_selection + direction) % num_options
+                attempts += 1
+
+            self.selected_option = new_selection
+
         elif session_plan and session_plan['state'] == 'post_structured_menu':
-            options = ["Calibrate", "Free Play", "High Scores", "Quit"]
-        else: # Standard menu
-            options = ["Play Finger Invaders", "Calibrate", "High Scores", "Quit"]
-            
-        max_options = len(options)
+            num_options = 4  # Calibrate, Free Play, High Scores, Quit
+            self.selected_option = (self.selected_option + direction) % num_options
 
-        self.selected_option = (self.selected_option + direction) % max_options
+        else:  # Standard menu
+            num_options = 4  # Play, Calibrate, High Scores, Quit
+            new_selection = (self.selected_option + direction) % num_options
 
-        # Adjust for options that might be conditionally available
-        # Case 1: Standard menu, "Play Finger Invaders" selected, but no calibration
-        if (not session_plan or (session_plan and session_plan['state'] not in ['structured_session', 'post_structured_menu'])) and \
-           options[self.selected_option] == "Play Finger Invaders" and not has_calibration:
-            self.selected_option = (self.selected_option + direction) % max_options
-            # Prevent infinite loop if only one option and it's disabled
-            if options[self.selected_option] == "Play Finger Invaders" and not has_calibration:
-                self.selected_option = (self.selected_option + direction) % max_options # Try once more
+            # Skip "Play Finger Invaders" if no calibration
+            if new_selection == 0 and not has_calibration:
+                new_selection = (new_selection + direction) % num_options
 
-        # Case 2: Structured session, a game is selected, but it's already been played
-        if session_plan and session_plan['state'] == 'structured_session' and \
-           self.selected_option < len(session_plan['games']) and \
-           session_plan['game_status'][session_plan['games'][self.selected_option].value] == "Played":
-            self.selected_option = (self.selected_option + direction) % max_options
-            # Prevent infinite loop
-            if self.selected_option < len(session_plan['games']) and \
-               session_plan['game_status'][session_plan['games'][self.selected_option].value] == "Played":
-                self.selected_option = (self.selected_option + direction) % max_options
-
-        # Ensure selected option is always valid (within bounds)
-        self.selected_option = max(0, min(self.selected_option, max_options - 1))
+            self.selected_option = new_selection
 
 
     def get_selected_option(self) -> int:

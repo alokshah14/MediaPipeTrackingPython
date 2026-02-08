@@ -45,6 +45,7 @@ class SessionManager:
             "structured_sessions_completed_today": 0,
             "last_session_number": 0,
             "game_performance": {mode.value: {"score_history": [], "last_played": None, "avg_score": 0, "play_count": 0} for mode in ALL_GAME_MODES},
+            "game_playtime": {mode.value: 0.0 for mode in ALL_GAME_MODES},  # Accumulated playtime per game (seconds)
             "current_session_plan": None # Stored as dict for JSON compatibility
         }
 
@@ -261,6 +262,25 @@ class SessionManager:
 
     def get_total_playtime(self) -> float:
         return self.session_data['total_playtime_seconds']
+
+    def get_game_playtime(self, game_mode: GameMode) -> float:
+        """Get accumulated playtime for a specific game mode (in seconds)."""
+        if 'game_playtime' not in self.session_data:
+            self.session_data['game_playtime'] = {mode.value: 0.0 for mode in ALL_GAME_MODES}
+        return self.session_data['game_playtime'].get(game_mode.value, 0.0)
+
+    def add_game_playtime(self, game_mode: GameMode, seconds: float):
+        """Add playtime to a specific game mode."""
+        if 'game_playtime' not in self.session_data:
+            self.session_data['game_playtime'] = {mode.value: 0.0 for mode in ALL_GAME_MODES}
+        self.session_data['game_playtime'][game_mode.value] = (
+            self.session_data['game_playtime'].get(game_mode.value, 0.0) + seconds
+        )
+        self._save_session_data()
+
+    def is_game_time_complete(self, game_mode: GameMode, required_seconds: float = 300.0) -> bool:
+        """Check if a game has reached its required playtime (default 5 minutes)."""
+        return self.get_game_playtime(game_mode) >= required_seconds
 
     def update(self, dt: float):
         """Placeholder for future timed events within the session manager."""
