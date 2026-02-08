@@ -50,14 +50,28 @@ class FingerInvaders:
 
     def __init__(self):
         """Initialize the game application."""
+        # Internal game resolution (all game logic uses these)
+        self.game_width = WINDOW_WIDTH
+        self.game_height = WINDOW_HEIGHT
+
+        # Get native monitor resolution
+        display_info = pygame.display.Info()
+        self.native_width = display_info.current_w
+        self.native_height = display_info.current_h
+
+        # Start windowed
+        self.is_fullscreen = False
+        self.screen_width = WINDOW_WIDTH
+        self.screen_height = WINDOW_HEIGHT
+
         # Set up display with OpenGL
         pygame.display.gl_set_attribute(pygame.GL_DEPTH_SIZE, 24)
         pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
-        pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.DOUBLEBUF | pygame.OPENGL)
-        self.screen = pygame.display.get_surface() # This is the OpenGL context surface
+        self._set_display_mode()
+        self.screen = pygame.display.get_surface()
 
-        # Create an off-screen surface for 2D Pygame rendering
-        self.pygame_2d_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        # Create an off-screen surface for 2D Pygame rendering (always at game resolution)
+        self.pygame_2d_surface = pygame.Surface((self.game_width, self.game_height), pygame.SRCALPHA)
 
         pygame.display.set_caption(GAME_TITLE)
         self.clock = pygame.time.Clock()
@@ -147,6 +161,34 @@ class FingerInvaders:
         # Initialize OpenGL for 2D overlay
         self._init_2d_opengl()
 
+    def _set_display_mode(self):
+        """Set the pygame display mode (windowed or fullscreen)."""
+        if self.is_fullscreen:
+            self.screen_width = self.native_width
+            self.screen_height = self.native_height
+            pygame.display.set_mode(
+                (self.screen_width, self.screen_height),
+                pygame.DOUBLEBUF | pygame.OPENGL | pygame.FULLSCREEN
+            )
+        else:
+            self.screen_width = self.game_width
+            self.screen_height = self.game_height
+            pygame.display.set_mode(
+                (self.screen_width, self.screen_height),
+                pygame.DOUBLEBUF | pygame.OPENGL
+            )
+
+    def _toggle_fullscreen(self):
+        """Toggle between windowed and fullscreen mode."""
+        self.is_fullscreen = not self.is_fullscreen
+        self._set_display_mode()
+        self.screen = pygame.display.get_surface()
+        self._init_2d_opengl()
+        # Re-init 3D hand renderer with new screen size
+        self.hand_renderer = OpenGLHandRenderer(self.screen)
+        self.hand_renderer.set_screen_size(self.screen_width, self.screen_height)
+        print(f"{'Fullscreen' if self.is_fullscreen else 'Windowed'} mode: {self.screen_width}x{self.screen_height}")
+
     def _init_2d_opengl(self):
         """Initializes OpenGL settings for drawing the 2D Pygame overlay."""
         glEnable(GL_TEXTURE_2D)
@@ -179,20 +221,21 @@ class FingerInvaders:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         # Use scissor test to only draw in the game area (exclude hand area at bottom)
-        # OpenGL coords: y=0 at bottom. Hand area is at bottom (y=0 to y=200)
-        # Game area is from y=200 to y=900
+        # OpenGL coords: y=0 at bottom. Scale scissor to actual screen size.
+        scale_y = self.screen_height / self.game_height
+        hand_area_height_scaled = int((self.game_height - GAME_AREA_BOTTOM) * scale_y)
+        game_area_height_scaled = int(GAME_AREA_BOTTOM * scale_y)
         glEnable(GL_SCISSOR_TEST)
-        hand_area_height = WINDOW_HEIGHT - GAME_AREA_BOTTOM  # 200 pixels
-        glScissor(0, hand_area_height, WINDOW_WIDTH, GAME_AREA_BOTTOM)
+        glScissor(0, hand_area_height_scaled, self.screen_width, game_area_height_scaled)
 
-        # Reset viewport to full screen
-        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+        # Viewport covers full screen
+        glViewport(0, 0, self.screen_width, self.screen_height)
 
-        # Orthographic projection for 2D rendering
+        # Orthographic projection in game coordinates (OpenGL scales to viewport)
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
-        gluOrtho2D(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT)
+        gluOrtho2D(0, self.game_width, 0, self.game_height)
 
         glMatrixMode(GL_MODELVIEW)
         glPushMatrix()
@@ -207,9 +250,9 @@ class FingerInvaders:
         glBegin(GL_QUADS)
         # Flip texture vertically (Pygame Y=0 top, OpenGL Y=0 bottom)
         glTexCoord2f(0, 1); glVertex2f(0, 0)
-        glTexCoord2f(1, 1); glVertex2f(WINDOW_WIDTH, 0)
-        glTexCoord2f(1, 0); glVertex2f(WINDOW_WIDTH, WINDOW_HEIGHT)
-        glTexCoord2f(0, 0); glVertex2f(0, WINDOW_HEIGHT)
+        glTexCoord2f(1, 1); glVertex2f(self.game_width, 0)
+        glTexCoord2f(1, 0); glVertex2f(self.game_width, self.game_height)
+        glTexCoord2f(0, 0); glVertex2f(0, self.game_height)
         glEnd()
 
         glDeleteTextures(1, [texture_id])
@@ -293,6 +336,11 @@ class FingerInvaders:
         mods = pygame.key.get_mods()
         if (mods & pygame.KMOD_META) and event.key in (pygame.K_w, pygame.K_q):
             self.running = False
+            return
+
+        # Fullscreen toggle
+        if event.key == pygame.K_F11:
+            self._toggle_fullscreen()
             return
 
         # Global keys
@@ -389,20 +437,11 @@ class FingerInvaders:
         self.game_engine.set_game_mode(game_mode)
 
         if game_mode == GameMode.FINGER_INVADERS:
-            # Load previous playtime for time-based progression
-            previous_time = self.session_manager.get_game_playtime(GameMode.FINGER_INVADERS)
-            self.game_engine.set_previous_time(previous_time)
             self.game_engine.start_game()
         elif game_mode == GameMode.EGG_CATCHER:
-            # Load previous playtime
-            previous_time = self.session_manager.get_game_playtime(GameMode.EGG_CATCHER)
-            self.egg_catcher_game.set_previous_time(previous_time)
             self.egg_catcher_game.start_game()
             self.game_engine.state = GameState.EGG_CATCHER
         elif game_mode == GameMode.PING_PONG:
-            # Load previous playtime
-            previous_time = self.session_manager.get_game_playtime(GameMode.PING_PONG)
-            self.ping_pong_game.set_previous_time(previous_time)
             self.ping_pong_game.start_game()
             self.game_engine.state = GameState.PING_PONG
         

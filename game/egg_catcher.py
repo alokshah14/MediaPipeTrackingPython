@@ -122,6 +122,9 @@ class EggCatcher:
         # Track which fingers have eggs in catch zone
         self.target_fingers: List[str] = []
 
+        # Track caught eggs per lane (for basket visual)
+        self.basket_eggs: List[int] = [0] * NUM_LANES
+
         # Statistics
         self.stats = {
             'total_eggs': 0,
@@ -153,6 +156,7 @@ class EggCatcher:
         self.difficulty_multiplier = 1.0
         self.correct_streak = 0
         self.target_fingers = []
+        self.basket_eggs = [0] * NUM_LANES
         self.last_spawn_time = pygame.time.get_ticks()
         self.stats = {
             'total_eggs': 0,
@@ -276,6 +280,7 @@ class EggCatcher:
                 self._increase_difficulty()
 
             self.stats['eggs_caught'] += 1
+            self.basket_eggs[egg.lane] += 1
             events['egg_caught'].append(egg.lane)
             events['finger_presses'].append({
                 'finger': finger,
@@ -384,6 +389,25 @@ class EggCatcher:
                 lx1 = x - basket_w // 2 + taper * (1 - frac)
                 lx2 = x + basket_w // 2 - taper * (1 - frac)
                 pygame.draw.line(surface, rim_color, (int(lx1), ly), (int(lx2), ly), 1)
+
+            # Draw caught eggs peeking out of basket
+            caught = self.basket_eggs[i]
+            if caught > 0:
+                # Show up to 3 visible eggs stacked in the basket
+                visible = min(caught, 3)
+                egg_w, egg_h = 18, 14
+                for e in range(visible):
+                    ey = basket_y - (e * (egg_h - 3)) - 2
+                    ex = x + (e - 1) * 6  # Slight horizontal offset
+                    egg_rect = pygame.Rect(ex - egg_w // 2, ey - egg_h // 2, egg_w, egg_h)
+                    pygame.draw.ellipse(surface, (255, 250, 230), egg_rect)
+                    pygame.draw.ellipse(surface, (200, 195, 170), egg_rect, 1)
+                # Show count if more than 3
+                if caught > 3:
+                    count_font = pygame.font.Font(None, 18)
+                    count_text = count_font.render(f"x{caught}", True, (255, 220, 100))
+                    count_rect = count_text.get_rect(center=(x, basket_y - visible * (egg_h - 3) - 8))
+                    surface.blit(count_text, count_rect)
 
             # Finger label below basket
             font = pygame.font.Font(None, 22)

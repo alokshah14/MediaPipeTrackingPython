@@ -100,6 +100,7 @@ class SessionManager:
             self.session_data['sessions_today'] = 0
             self.session_data['structured_sessions_completed_today'] = 0
             self.session_data['last_session_number'] = 0
+            self.session_data['game_playtime'] = {mode.value: 0.0 for mode in ALL_GAME_MODES}
             self.current_session_plan = self._generate_session_plan()
             self.session_data['current_session_plan'] = {
                 "state": self.current_session_plan["state"],

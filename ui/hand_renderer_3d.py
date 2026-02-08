@@ -26,8 +26,17 @@ class OpenGLHandRenderer:
         self.hand_area_top = GAME_AREA_BOTTOM
         self.hand_area_height = HAND_DISPLAY_HEIGHT
 
+        # Screen dimensions (may differ from game dimensions in fullscreen)
+        self.screen_width = WINDOW_WIDTH
+        self.screen_height = WINDOW_HEIGHT
+
         # Initialize OpenGL for this section
         self._init_opengl()
+
+    def set_screen_size(self, width: int, height: int):
+        """Update screen dimensions for fullscreen scaling."""
+        self.screen_width = width
+        self.screen_height = height
 
         # Quadric for drawing spheres and cylinders
         self.quadric = gluNewQuadric()
@@ -99,10 +108,14 @@ class OpenGLHandRenderer:
         glLightfv(GL_LIGHT0, GL_AMBIENT, (0.3, 0.3, 0.3, 1))
         glLightfv(GL_LIGHT0, GL_DIFFUSE, (0.8, 0.8, 0.8, 1))
 
+        # Scale viewport to actual screen size
+        scale_x = self.screen_width / WINDOW_WIDTH
+        scale_y = self.screen_height / WINDOW_HEIGHT
+
         # Define the sub-viewports for left and right hands.
-        viewport_width = WINDOW_WIDTH // 2
-        viewport_height = self.hand_area_height
-        viewport_y = WINDOW_HEIGHT - (self.hand_area_top + viewport_height)
+        viewport_width = int(WINDOW_WIDTH // 2 * scale_x)
+        viewport_height = int(self.hand_area_height * scale_y)
+        viewport_y = int((WINDOW_HEIGHT - (self.hand_area_top + self.hand_area_height)) * scale_y)
 
         # Enable scissor test to limit clears to each viewport
         glEnable(GL_SCISSOR_TEST)
@@ -121,8 +134,9 @@ class OpenGLHandRenderer:
             self._draw_single_hand(self.hand_data.get('left'), 'left')
 
         # --- Draw Right Hand Viewport ---
-        glViewport(WINDOW_WIDTH // 2, viewport_y, viewport_width, viewport_height)
-        glScissor(WINDOW_WIDTH // 2, viewport_y, viewport_width, viewport_height)
+        right_x = int(WINDOW_WIDTH // 2 * scale_x)
+        glViewport(right_x, viewport_y, viewport_width, viewport_height)
+        glScissor(right_x, viewport_y, viewport_width, viewport_height)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         self._setup_camera_for_hand(viewport_width, viewport_height)
