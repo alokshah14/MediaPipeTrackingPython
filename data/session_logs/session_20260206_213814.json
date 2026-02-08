@@ -1,0 +1,27 @@
+{
+  "session_id": "20260206_213814",
+  "start_time": "2026-02-06T21:38:14.620145",
+  "start_timestamp": 1770435494.620095,
+  "game_mode": "egg_catcher",
+  "is_test_mode": true,
+  "calibration_used": {},
+  "events": [],
+  "summary": {
+    "total_presses": 0,
+    "correct_presses": 0,
+    "wrong_presses": 0,
+    "missiles_missed": 0,
+    "accuracy": 0.0,
+    "clean_trials": 0,
+    "coupled_keypresses": 0,
+    "average_mlr": 0.0,
+    "average_reaction_time_ms": 0.0
+  },
+  "mlr_values": [],
+  "reaction_times": [],
+  "end_time": "2026-02-06T21:38:25.472094",
+  "end_timestamp": 1770435505.472092,
+  "duration_seconds": 10.85,
+  "final_score": 0,
+  "final_lives": 3
+}

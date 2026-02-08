@@ -1,0 +1,24 @@
+{
+  "summary": {
+    "session_id": "20260207_200737",
+    "start_time": "2026-02-07T20:07:37.245207",
+    "end_time": "2026-02-07T20:09:04.767363",
+    "duration_seconds": 0,
+    "game_mode": "Unknown",
+    "total_trials": 0,
+    "correct_trials": 0,
+    "wrong_finger_trials": 0,
+    "clean_trials": 0,
+    "clean_trials_angle": 0,
+    "coupled_keypress_trials": 0,
+    "wrong_finger_error_rate": 0.0,
+    "clean_trial_rate": 0.0,
+    "clean_trial_rate_angle": 0.0,
+    "coupled_keypress_rate": 0.0,
+    "avg_reaction_time_ms": 0.0,
+    "avg_motion_leakage_ratio": 0.0,
+    "avg_angle_based_mlr": 0.0,
+    "final_score": -20
+  },
+  "trials": []
+}

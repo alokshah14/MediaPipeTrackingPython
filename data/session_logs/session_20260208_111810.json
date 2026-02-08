@@ -1,0 +1,27 @@
+{
+  "session_id": "20260208_111810",
+  "start_time": "2026-02-08T11:18:10.740200",
+  "start_timestamp": 1770571090.740173,
+  "game_mode": "ping_pong",
+  "is_test_mode": true,
+  "calibration_used": {},
+  "events": [],
+  "summary": {
+    "total_presses": 0,
+    "correct_presses": 0,
+    "wrong_presses": 0,
+    "missiles_missed": 0,
+    "accuracy": 0.0,
+    "clean_trials": 0,
+    "coupled_keypresses": 0,
+    "average_mlr": 0.0,
+    "average_reaction_time_ms": 0.0
+  },
+  "mlr_values": [],
+  "reaction_times": [],
+  "end_time": "2026-02-08T11:18:10.740659",
+  "end_timestamp": 1770571090.7406578,
+  "duration_seconds": 0.0,
+  "final_score": 0,
+  "final_lives": 0
+}

@@ -1,0 +1,25 @@
+trial_number,timestamp,elapsed_seconds,target_finger,pressed_finger,is_wrong_finger,reaction_time_ms,coupled_keypress,pos_mlr,pos_target_path_mm,pos_non_target_path_mm,is_clean_trial_pos,angle_mlr,angle_target_path_deg,angle_non_target_path_deg,is_clean_trial_angle
+
+--- SESSION SUMMARY ---
+session_id,20260207_164100
+start_time,2026-02-07T16:41:00.857396
+end_time,2026-02-07T16:41:14.718687
+duration_seconds,0
+game_mode,Unknown
+total_trials,0
+correct_trials,0
+wrong_finger_trials,0
+coupled_keypress_trials,0
+wrong_finger_error_rate_%,0.0
+coupled_keypress_rate_%,0.0
+avg_reaction_time_ms,0.0
+--- Position-based ---
+clean_trials_pos,0
+clean_trial_rate_pos_%,0.0
+avg_pos_mlr,0.0
+--- Angle-based ---
+clean_trials_angle,0
+clean_trial_rate_angle_%,0.0
+avg_angle_mlr,0.0
+---
+final_score,0

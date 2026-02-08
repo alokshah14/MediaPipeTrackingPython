@@ -1,0 +1,33 @@
+trial_number,timestamp,elapsed_seconds,target_finger,pressed_finger,is_wrong_finger,reaction_time_ms,reaction_time_from_zone_ms,reaction_time_from_appear_ms,coupled_keypress,pos_mlr,pos_target_path_mm,pos_non_target_path_mm,is_clean_trial_pos,angle_mlr,angle_target_path_deg,angle_non_target_path_deg,is_clean_trial_angle
+1,2026-02-08T11:23:13.100904,7.95,left_ring,left_middle,True,5447,234,5447,False,0.0,0.0,0.0,False,0.0,0.0,0.0,False
+2,2026-02-08T11:23:13.520573,8.369,left_ring,left_middle,True,5866,653,5866,False,0.0,0.0,0.0,False,0.0,0.0,0.0,False
+3,2026-02-08T11:23:13.583810,8.433,left_ring,left_index,True,5930,717,5930,False,0.0,0.0,0.0,False,0.0,0.0,0.0,False
+4,2026-02-08T11:23:15.711864,10.561,left_pinky,left_pinky,False,5545,332,5545,False,0.0,0.0,0.0,True,0.0,0.0,0.0,True
+5,2026-02-08T11:23:18.049422,12.898,right_pinky,left_index,True,5366,149,5366,False,0.0,0.0,0.0,False,0.0,0.0,0.0,False
+6,2026-02-08T11:23:18.530364,13.379,right_pinky,left_thumb,True,5847,630,5847,False,0.0,0.0,0.0,False,0.0,0.0,0.0,False
+7,2026-02-08T11:23:22.551880,17.401,right_pinky,left_thumb,True,6741,220,6741,False,0.0,0.0,0.0,False,0.0,0.0,0.0,False
+8,2026-02-08T11:23:27.989026,22.838,left_pinky,left_pinky,False,8322,300,8322,False,0.0,0.0,0.0,True,0.0,0.0,0.0,True
+
+--- SESSION SUMMARY ---
+session_id,20260208_112305
+start_time,2026-02-08T11:23:05.151255
+end_time,2026-02-08T11:23:29.023589
+duration_seconds,23.87
+game_mode,egg_catcher
+total_trials,8
+correct_trials,2
+wrong_finger_trials,6
+coupled_keypress_trials,0
+wrong_finger_error_rate_%,75.0
+coupled_keypress_rate_%,0.0
+avg_reaction_time_ms,6133.0
+--- Position-based ---
+clean_trials_pos,2
+clean_trial_rate_pos_%,25.0
+avg_pos_mlr,0.0
+--- Angle-based ---
+clean_trials_angle,2
+clean_trial_rate_angle_%,25.0
+avg_angle_mlr,0.0
+---
+final_score,-60

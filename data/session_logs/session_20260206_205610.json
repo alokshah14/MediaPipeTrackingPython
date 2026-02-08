@@ -1,0 +1,22 @@
+{
+  "session_id": "20260206_205610",
+  "start_time": "2026-02-06T20:56:10.483205",
+  "start_timestamp": 1770432970.4831748,
+  "game_mode": "egg_catcher",
+  "is_test_mode": true,
+  "calibration_used": {},
+  "events": [],
+  "summary": {
+    "total_presses": 0,
+    "correct_presses": 0,
+    "wrong_presses": 0,
+    "missiles_missed": 0,
+    "accuracy": 0.0,
+    "clean_trials": 0,
+    "coupled_keypresses": 0,
+    "average_mlr": 0.0,
+    "average_reaction_time_ms": 0.0
+  },
+  "mlr_values": [],
+  "reaction_times": []
+}

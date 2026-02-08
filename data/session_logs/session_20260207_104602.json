@@ -1,0 +1,22 @@
+{
+  "session_id": "20260207_104602",
+  "start_time": "2026-02-07T10:46:02.706766",
+  "start_timestamp": 1770482762.706738,
+  "game_mode": "finger_invaders",
+  "is_test_mode": true,
+  "calibration_used": {},
+  "events": [],
+  "summary": {
+    "total_presses": 0,
+    "correct_presses": 0,
+    "wrong_presses": 0,
+    "missiles_missed": 0,
+    "accuracy": 0.0,
+    "clean_trials": 0,
+    "coupled_keypresses": 0,
+    "average_mlr": 0.0,
+    "average_reaction_time_ms": 0.0
+  },
+  "mlr_values": [],
+  "reaction_times": []
+}

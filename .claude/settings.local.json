@@ -13,7 +13,12 @@
       "WebSearch",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(git rm:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python -c \"from main import FingerInvaders; print\\(''''Import OK''''\\)\")",
+      "mcp__plugin_claude-mem_mcp-search__search",
+      "Bash(uv --version:*)",
+      "Bash(python:*)"
     ]
   }
 }

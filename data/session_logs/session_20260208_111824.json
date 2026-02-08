@@ -1,0 +1,1204 @@
+{
+  "session_id": "20260208_111824",
+  "start_time": "2026-02-08T11:18:24.562125",
+  "start_timestamp": 1770571104.562099,
+  "game_mode": "egg_catcher",
+  "is_test_mode": true,
+  "calibration_used": {},
+  "events": [
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:32.596064",
+      "elapsed_seconds": 8.034,
+      "finger_pressed": "left_index",
+      "target_finger": "left_middle",
+      "is_correct": false,
+      "game_state": {
+        "score": -5,
+        "lives": 0,
+        "difficulty": "x0.9"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5523,
+        "reaction_time_from_zone_ms": 303,
+        "reaction_time_from_appear_ms": 5523,
+        "is_wrong_finger": true,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": false,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_ring": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_index": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:33.025033",
+      "elapsed_seconds": 8.463,
+      "finger_pressed": "left_middle",
+      "target_finger": "left_middle",
+      "is_correct": true,
+      "game_state": {
+        "score": 5,
+        "lives": 0,
+        "difficulty": "x0.9"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5952,
+        "reaction_time_from_zone_ms": 732,
+        "reaction_time_from_appear_ms": 5952,
+        "is_wrong_finger": false,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": true,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_ring": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_index": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:35.024348",
+      "elapsed_seconds": 10.462,
+      "finger_pressed": "left_middle",
+      "target_finger": "left_middle",
+      "is_correct": true,
+      "game_state": {
+        "score": 15,
+        "lives": 0,
+        "difficulty": "x0.9"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5435,
+        "reaction_time_from_zone_ms": 218,
+        "reaction_time_from_appear_ms": 5435,
+        "is_wrong_finger": false,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": true,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_ring": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_index": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:37.522250",
+      "elapsed_seconds": 12.96,
+      "finger_pressed": "right_middle",
+      "target_finger": "right_index",
+      "is_correct": false,
+      "game_state": {
+        "score": 10,
+        "lives": 0,
+        "difficulty": "x0.9"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5429,
+        "reaction_time_from_zone_ms": 217,
+        "reaction_time_from_appear_ms": 5429,
+        "is_wrong_finger": true,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": false,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_ring": 0.0,
+          "left_middle": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:37.905786",
+      "elapsed_seconds": 13.344,
+      "finger_pressed": "right_ring",
+      "target_finger": "right_index",
+      "is_correct": false,
+      "game_state": {
+        "score": 5,
+        "lives": 0,
+        "difficulty": "x0.8"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5813,
+        "reaction_time_from_zone_ms": 601,
+        "reaction_time_from_appear_ms": 5813,
+        "is_wrong_finger": true,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": false,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_ring": 0.0,
+          "left_middle": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "missile_missed",
+      "timestamp": "2026-02-08T11:18:38.422894",
+      "elapsed_seconds": 13.861,
+      "target_finger": "right_index",
+      "game_state": {
+        "score": 5,
+        "lives": 0,
+        "difficulty": "x0.8"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:40.450676",
+      "elapsed_seconds": 15.889,
+      "finger_pressed": "left_ring",
+      "target_finger": "left_ring",
+      "is_correct": true,
+      "game_state": {
+        "score": 15,
+        "lives": 0,
+        "difficulty": "x0.8"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5712,
+        "reaction_time_from_zone_ms": 214,
+        "reaction_time_from_appear_ms": 5712,
+        "is_wrong_finger": false,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": true,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_middle": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_index": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "finger_press",
+      "timestamp": "2026-02-08T11:18:43.078868",
+      "elapsed_seconds": 18.517,
+      "finger_pressed": "right_pinky",
+      "target_finger": "right_index",
+      "is_correct": false,
+      "game_state": {
+        "score": 10,
+        "lives": 0,
+        "difficulty": "x0.7"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 230.0,
+                "z": 25.0
+              },
+              "extended": false
+            }
+          }
+        }
+      },
+      "biomechanics": {
+        "reaction_time_ms": 5707,
+        "reaction_time_from_zone_ms": 219,
+        "reaction_time_from_appear_ms": 5707,
+        "is_wrong_finger": true,
+        "motion_leakage_ratio": 0.0,
+        "target_path_length_mm": 0.0,
+        "coupled_keypress": false,
+        "is_clean_trial": false,
+        "non_target_path_lengths": {
+          "left_pinky": 0.0,
+          "left_ring": 0.0,
+          "left_middle": 0.0,
+          "left_index": 0.0,
+          "left_thumb": 0.0,
+          "right_thumb": 0.0,
+          "right_middle": 0.0,
+          "right_ring": 0.0,
+          "right_pinky": 0.0
+        }
+      }
+    },
+    {
+      "type": "missile_missed",
+      "timestamp": "2026-02-08T11:18:44.026713",
+      "elapsed_seconds": 19.465,
+      "target_finger": "right_index",
+      "game_state": {
+        "score": 10,
+        "lives": 0,
+        "difficulty": "x0.7"
+      },
+      "hand_tracking": {
+        "left_hand": {
+          "palm_position": {
+            "x": -100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": -60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": -80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": -100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": -120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": -140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        },
+        "right_hand": {
+          "palm_position": {
+            "x": 100,
+            "y": 150.0,
+            "z": 0.0
+          },
+          "fingers": {
+            "thumb": {
+              "tip_position": {
+                "x": 60,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "index": {
+              "tip_position": {
+                "x": 80,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "middle": {
+              "tip_position": {
+                "x": 100,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "ring": {
+              "tip_position": {
+                "x": 120,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            },
+            "pinky": {
+              "tip_position": {
+                "x": 140,
+                "y": 237.5,
+                "z": 0
+              },
+              "extended": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "summary": {
+    "total_presses": 7,
+    "correct_presses": 3,
+    "wrong_presses": 4,
+    "missiles_missed": 2,
+    "accuracy": 42.86,
+    "clean_trials": 3,
+    "coupled_keypresses": 0,
+    "average_mlr": 0.0,
+    "average_reaction_time_ms": 5653.0
+  },
+  "mlr_values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "reaction_times": [
+    5523,
+    5952,
+    5435,
+    5429,
+    5813,
+    5712,
+    5707
+  ],
+  "end_time": "2026-02-08T11:18:44.428735",
+  "end_timestamp": 1770571124.4287329,
+  "duration_seconds": 19.87,
+  "final_score": 10,
+  "final_lives": 0
+}
