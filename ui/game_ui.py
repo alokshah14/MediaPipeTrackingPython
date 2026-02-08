@@ -421,13 +421,18 @@ class MenuUI:
         """Update animations."""
         self.animation_phase += 0.05 * dt
 
-    def draw_main_menu(self, has_calibration: bool = False, session_plan: Dict = None):
+    def draw_main_menu(self, has_calibration: bool = False, daily_session_locked: bool = False,
+                       menu_message: str = "", menu_options_text: List[str] = None,
+                       current_game_to_highlight: Optional[GameMode] = None):
         """
         Draw the main menu.
 
         Args:
-            has_calibration: Whether calibration data exists
-            session_plan: Dictionary containing structured session info (state, games, suggestions)
+            has_calibration: Whether calibration data exists.
+            daily_session_locked: True if all daily sessions are completed.
+            menu_message: Message to display at the top of the menu (e.g., "Play Finger Invaders").
+            menu_options_text: List of strings for menu options.
+            current_game_to_highlight: The GameMode enum of the game to highlight as currently active.
         """
         self.surface.fill(BACKGROUND)
 
@@ -444,81 +449,49 @@ class MenuUI:
         title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 80))
         self.surface.blit(title, title_rect)
 
-        # Structured Session or Free Play
-        if session_plan and session_plan['state'] == 'structured_session':
-            subtitle = self.fonts['medium'].render(f"Daily Session: {session_plan['session_number']}/5", True, (150, 150, 200))
-            sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 140))
-            self.surface.blit(subtitle, sub_rect)
-
-            msg = self.fonts['small'].render(session_plan['message'], True, YELLOW)
+        # Menu Message / Subtitle
+        if menu_message:
+            msg = self.fonts['medium'].render(menu_message, True, YELLOW if not daily_session_locked else (100, 255, 100))
             msg_rect = msg.get_rect(center=(WINDOW_WIDTH // 2, 180))
             self.surface.blit(msg, msg_rect)
 
-            # Find first incomplete game
-            first_incomplete_idx = 0
-            for i, game_mode in enumerate(session_plan['games']):
-                status = session_plan['game_status'].get(game_mode.value, "Pending")
-                if status != "Played":
-                    first_incomplete_idx = i
-                    break
-            else:
-                first_incomplete_idx = len(session_plan['games'])
-
-            # Display: Calibrate, then scheduled games with lock status
-            options = []
-            options.append(("Calibrate", "Set up finger detection thresholds"))
-            for i, game_mode in enumerate(session_plan['games']):
-                status = session_plan['game_status'].get(game_mode.value, "Pending")
-                is_locked = i > first_incomplete_idx and status != "Played"
-                if is_locked:
-                    options.append((
-                        f"[LOCKED] {game_mode.value.replace('_', ' ').title()}",
-                        "Complete previous game first"
-                    ))
-                else:
-                    options.append((
-                        f"Play {game_mode.value.replace('_', ' ').title()}",
-                        f"({status})"
-                    ))
-            options.append(("Quit", "Exit the application"))
-
-        elif session_plan and session_plan['state'] == 'post_structured_menu':
-            subtitle = self.fonts['medium'].render("Daily Session Complete!", True, (100, 255, 100))
-            sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 140))
-            self.surface.blit(subtitle, sub_rect)
-
-            msg = self.fonts['small'].render(session_plan['message'], True, YELLOW)
-            msg_rect = msg.get_rect(center=(WINDOW_WIDTH // 2, 180))
-            self.surface.blit(msg, msg_rect)
-
-            options = [
-                ("Calibrate", "Set up finger detection thresholds"),
-                ("Free Play", "Play any game you like"),
-                ("High Scores", "View the leaderboard"),
-                ("Quit", "Exit the application"),
-            ]
-        else: # Standard Menu
-            subtitle = self.fonts['medium'].render("Welcome!", True, (150, 150, 200))
-            sub_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 140))
-            self.surface.blit(subtitle, sub_rect)
-
-            options = [
-                ("Play Finger Invaders", "Begin playing with current calibration" if has_calibration else "Calibration required first"),
-                ("Calibrate", "Set up finger detection thresholds"),
-                ("High Scores", "View the leaderboard"),
-                ("Quit", "Exit the game"),
-            ]
-
+        options = menu_options_text if menu_options_text is not None else ["Calibrate", "Quit"]
+        
         start_y = 250
-        for i, (label, description) in enumerate(options):
+        for i, label in enumerate(options):
             y = start_y + i * 80
 
-            # Check if option is available
+            # Determine if option is available/locked
             available = True
-            if not has_calibration and label == "Play Finger Invaders":
-                available = False
-            if "[LOCKED]" in label:
-                available = False
+            is_game_option = False
+            game_mode_from_label: Optional[GameMode] = None
+
+            # Special handling for "Play Finger Invaders" when no current_game_to_highlight (e.g., initial startup)
+            if not daily_session_locked and "Calibrate" in label and not has_calibration and i == 0:
+                available = True # Calibrate is always available as first option if daily not locked
+
+            # Check if this is a game option
+            for gm in ALL_GAME_MODES:
+                if gm.name.replace('_', ' ').title() in label:
+                    is_game_option = True
+                    game_mode_from_label = gm
+                    break
+            
+            # Lock logic for game options
+            if is_game_option:
+                if daily_session_locked:
+                    available = False # All games locked if day is locked
+                elif not has_calibration:
+                    available = False # Cannot play games without calibration
+                elif current_game_to_highlight and current_game_to_highlight != GameMode.FREE_PLAY and game_mode_from_label != current_game_to_highlight:
+                    # If there's a specific game to highlight, other game options are not available
+                    available = False
+
+            # High Scores and Quit are generally available unless daily_session_locked means only Quit is left
+            if "Quit" in label:
+                available = True
+            if "High Scores" in label and daily_session_locked: # If day is locked, only calibrate and quit are shown, so High Scores isn't an option.
+                 available = False
 
             # Selection indicator
             if i == self.selected_option and available:
@@ -559,16 +532,22 @@ class MenuUI:
                 color = (150, 80, 80)
             else:
                 color = WHITE if available else DARK_GRAY
+            
+            # Highlight the current active game for the segment
+            if is_game_option and game_mode_from_label == current_game_to_highlight and not daily_session_locked:
+                color = YELLOW
+
 
             # Label
             label_text = self.fonts['large'].render(label, True, color if available else DARK_GRAY)
             label_rect = label_text.get_rect(center=(WINDOW_WIDTH // 2, y + 5))
             self.surface.blit(label_text, label_rect)
 
-            # Description
-            desc_text = self.fonts['small'].render(description, True, GRAY if available else DARK_GRAY)
-            desc_rect = desc_text.get_rect(center=(WINDOW_WIDTH // 2, y + 35))
-            self.surface.blit(desc_text, desc_rect)
+            # Removed description - now handled by menu_message or inferred
+            # if description:
+            #     desc_text = self.fonts['small'].render(description, True, GRAY if available else DARK_GRAY)
+            #     desc_rect = desc_text.get_rect(center=(WINDOW_WIDTH // 2, y + 35))
+            #     self.surface.blit(desc_text, desc_rect)
 
         # Instructions
         inst = self.fonts['small'].render("Use UP/DOWN arrows to select, ENTER to confirm", True, (100, 100, 150))
@@ -615,55 +594,55 @@ class MenuUI:
                 self.surface.blit(text, (100, y))
             y += 28
 
-    def move_selection(self, direction: int, max_options: int, has_calibration: bool, session_plan: Dict = None):
-        """Move menu selection, adjusting for dynamic options."""
-        if session_plan and session_plan['state'] == 'structured_session':
-            # Options: Calibrate, Game1, Game2, ..., Quit
-            num_options = 1 + len(session_plan['games']) + 1  # Calibrate + games + Quit
+    def move_selection(self, direction: int, daily_session_locked: bool, has_calibration: bool,
+                       current_segment_info: Dict, playable_games: List[GameMode]):
+        """Move menu selection, adjusting for dynamic options based on daily session state."""
+        
+        menu_options = ["Calibrate"]
+        if not daily_session_locked:
+            if current_segment_info["segment_number"] == 5:
+                # All games available for segment 5
+                menu_options.extend([gm for gm in ALL_GAME_MODES])
+            elif current_segment_info["current_game"]:
+                # Only one game available for segments 1-4
+                menu_options.append(current_segment_info["current_game"])
+            menu_options.append("High Scores")
+        menu_options.append("Quit")
 
-            # Find first incomplete game index
-            first_incomplete_idx = 0
-            for i, game_mode in enumerate(session_plan['games']):
-                status = session_plan['game_status'].get(game_mode.value, "Pending")
-                if status != "Played":
-                    first_incomplete_idx = i
-                    break
-            else:
-                first_incomplete_idx = len(session_plan['games'])
+        num_options = len(menu_options)
+        new_selection = (self.selected_option + direction) % num_options
 
-            # Move selection
-            new_selection = (self.selected_option + direction) % num_options
+        # Loop to skip over non-playable options if necessary
+        attempts = 0
+        while attempts < num_options:
+            selected_option_value = menu_options[new_selection]
 
-            # Skip locked games (games after first_incomplete_idx that aren't played)
-            attempts = 0
-            while attempts < num_options:
-                # Option 0 = Calibrate (always available)
-                # Option 1 to len(games) = Games
-                # Option len(games)+1 = Quit
-                if new_selection == 0 or new_selection == num_options - 1:
-                    break  # Calibrate and Quit are always available
-                game_idx = new_selection - 1  # Convert to game index
-                if game_idx <= first_incomplete_idx:
-                    break  # This game is unlocked
-                # Game is locked, skip it
-                new_selection = (new_selection + direction) % num_options
-                attempts += 1
+            can_select = True
+            if "Calibrate" in str(selected_option_value): # Calibrate option
+                can_select = True
+            elif "Quit" in str(selected_option_value): # Quit option
+                can_select = True
+            elif "High Scores" in str(selected_option_value): # High Scores option
+                can_select = True
+            elif isinstance(selected_option_value, GameMode): # Game options
+                if daily_session_locked:
+                    can_select = False # All games locked if day is locked
+                elif not has_calibration:
+                    can_select = False # Cannot play games without calibration
+                elif current_segment_info["segment_number"] != 5 and selected_option_value != current_segment_info["current_game"]:
+                    can_select = False # Only current game is playable for segments 1-4
+                elif selected_option_value not in playable_games:
+                    can_select = False # Should be covered by above, but as a safeguard
 
-            self.selected_option = new_selection
+            if can_select:
+                self.selected_option = new_selection
+                return
 
-        elif session_plan and session_plan['state'] == 'post_structured_menu':
-            num_options = 4  # Calibrate, Free Play, High Scores, Quit
-            self.selected_option = (self.selected_option + direction) % num_options
+            new_selection = (new_selection + direction) % num_options
+            attempts += 1
 
-        else:  # Standard menu
-            num_options = 4  # Play, Calibrate, High Scores, Quit
-            new_selection = (self.selected_option + direction) % num_options
-
-            # Skip "Play Finger Invaders" if no calibration
-            if new_selection == 0 and not has_calibration:
-                new_selection = (new_selection + direction) % num_options
-
-            self.selected_option = new_selection
+        # If after looping, no selectable option found (shouldn't happen with Calibrate/Quit always available)
+        self.selected_option = new_selection # Default to whatever it landed on
 
 
     def get_selected_option(self) -> int:

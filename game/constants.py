@@ -38,6 +38,9 @@ PLAYER_MISSILE_SPEED = 12.0
 PLAYER_MISSILE_WIDTH = 20
 PLAYER_MISSILE_HEIGHT = 40
 
+# Session Management
+SESSION_SEGMENT_DURATION = 5 * 60 * 1000 # 5 minutes in milliseconds
+
 # Difficulty settings
 DIFFICULTY_LEVELS = {
     'Easy': {

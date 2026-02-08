@@ -1,288 +1,227 @@
 import json
 import os
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, date
 from typing import Dict, List, Optional
-from game.constants import GameMode, ALL_GAME_MODES
+from dataclasses import dataclass, field
 
+from game.constants import GameMode, ALL_GAME_MODES, SESSION_SEGMENT_DURATION
 
-class SessionManager:
-    SESSION_FILE = "data/session_data.json"
-    DAILY_SESSIONS_COUNT = 5
-    SESSION_DURATION_MINUTES = 5 # Each mini-game session duration
-    DAILY_MINIMUM_PLAYTIME_MINUTES = 25 # Total minimum for structured sessions
-    POST_STRUCTURED_MENU_OPTIONS = ["Calibrate", "Free Play", "High Scores", "Quit"]
+DAILY_SESSION_FILE = "data/daily_session_state.json"
 
-    def __init__(self, is_test_mode: bool = False):
-        self.is_test_mode = is_test_mode
-        self.session_data = self._load_session_data()
-        self.current_session_plan = None
-        self._ensure_session_data_integrity()
-        self.new_day_check() # Generate new plan if it's a new day
+@dataclass
+class DailySessionState:
+    last_played_date: date = field(default_factory=date.min.fromtimestamp) # Using datetime.min.fromtimestamp() to represent an "empty" date
+    daily_game_order: List[GameMode] = field(default_factory=list)
+    current_segment: int = 0 # 0 for initial state, 1-5 for actual segments
+    segment_playtime_ms: int = 0
+    segment_scores: Dict[str, int] = field(default_factory=dict) # GameMode.value -> score for that segment
+    lowest_score_game: Optional[GameMode] = None
+    is_locked_for_day: bool = False
+    
+    # Store the daily progression of games explicitly
+    game_progression_track: List[GameMode] = field(default_factory=list)
 
-    def _load_session_data(self) -> Dict:
-        """Loads session data from file or returns a default structure."""
-        if os.path.exists(self.SESSION_FILE):
-            try:
-                with open(self.SESSION_FILE, 'r') as f:
-                    data = json.load(f)
-                    # Convert string dates back to datetime objects
-                    data['last_played_date'] = datetime.fromisoformat(data['last_played_date'])
-                    for game_mode_str, session_info in data['game_performance'].items():
-                        if 'last_played' in session_info and session_info['last_played']:
-                            session_info['last_played'] = datetime.fromisoformat(session_info['last_played'])
-                    return data
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"Error loading session data: {e}. Starting fresh.")
-        return self._default_session_data()
-
-    def _default_session_data(self) -> Dict:
-        """Returns a new, default session data structure."""
+    def to_json(self) -> Dict:
         return {
-            "last_played_date": datetime.min, # epoch start to force new day on first run
-            "total_playtime_seconds": 0,
-            "sessions_today": 0,
-            "structured_sessions_completed_today": 0,
-            "last_session_number": 0,
-            "game_performance": {mode.value: {"score_history": [], "last_played": None, "avg_score": 0, "play_count": 0} for mode in ALL_GAME_MODES},
-            "game_playtime": {mode.value: 0.0 for mode in ALL_GAME_MODES},  # Accumulated playtime per game (seconds)
-            "current_session_plan": None # Stored as dict for JSON compatibility
+            "last_played_date": self.last_played_date.isoformat(),
+            "daily_game_order": [gm.value for gm in self.daily_game_order],
+            "current_segment": self.current_segment,
+            "segment_playtime_ms": self.segment_playtime_ms,
+            "segment_scores": self.segment_scores,
+            "lowest_score_game": self.lowest_score_game.value if self.lowest_score_game else None,
+            "is_locked_for_day": self.is_locked_for_day,
+            "game_progression_track": [gm.value for gm in self.game_progression_track]
         }
 
-    def _save_session_data(self):
-        """Saves current session data to file."""
-        try:
-            # Convert datetime objects to ISO format strings for JSON
-            savable_data = self.session_data.copy()
-            savable_data['last_played_date'] = savable_data['last_played_date'].isoformat()
-            
-            game_perf_savable = {}
-            for game_mode_str, session_info in savable_data['game_performance'].items():
-                game_perf_savable[game_mode_str] = session_info.copy()
-                if game_perf_savable[game_mode_str]['last_played']:
-                    game_perf_savable[game_mode_str]['last_played'] = game_perf_savable[game_mode_str]['last_played'].isoformat()
-            savable_data['game_performance'] = game_perf_savable
-
-            # Ensure data/ directory exists
-            os.makedirs(os.path.dirname(self.SESSION_FILE), exist_ok=True)
-
-            with open(self.SESSION_FILE, 'w') as f:
-                json.dump(savable_data, f, indent=2)
-        except IOError as e:
-            print(f"Error saving session data: {e}")
-
-    def _ensure_session_data_integrity(self):
-        """Ensures all expected fields are present in session_data."""
-        default = self._default_session_data()
-        for key, value in default.items():
-            if key not in self.session_data:
-                self.session_data[key] = value
-        # Ensure all game modes are in performance tracking
-        for mode in ALL_GAME_MODES:
-            if mode.value not in self.session_data['game_performance']:
-                self.session_data['game_performance'][mode.value] = default['game_performance'][mode.value]
-        self._save_session_data() # Save any integrity fixes
-
-
-    def new_day_check(self) -> bool:
-        """
-        Checks if it's a new day and generates a new session plan if so.
-
-        Returns:
-            True if a new session plan was generated, False otherwise.
-        """
-        today = datetime.now().date()
-        last_played_date = self.session_data['last_played_date'].date()
-
-        if today > last_played_date:
-            print("New day detected. Generating new session plan.")
-            self.session_data['last_played_date'] = datetime.now()
-            self.session_data['sessions_today'] = 0
-            self.session_data['structured_sessions_completed_today'] = 0
-            self.session_data['last_session_number'] = 0
-            self.session_data['game_playtime'] = {mode.value: 0.0 for mode in ALL_GAME_MODES}
-            self.current_session_plan = self._generate_session_plan()
-            self.session_data['current_session_plan'] = {
-                "state": self.current_session_plan["state"],
-                "session_number": self.current_session_plan["session_number"],
-                "games": [gm.value for gm in self.current_session_plan["games"]], # Store as strings
-                "message": self.current_session_plan["message"],
-                "game_status": self.current_session_plan["game_status"]
-            }
-            self._save_session_data()
-            return True
-        elif self.session_data['current_session_plan']:
-            # Restore current_session_plan from saved data (Enum conversion)
-            plan_data = self.session_data['current_session_plan']
-            self.current_session_plan = {
-                "state": plan_data["state"],
-                "session_number": plan_data["session_number"],
-                "games": [GameMode(gm_str) for gm_str in plan_data["games"]],
-                "message": plan_data["message"],
-                "game_status": plan_data["game_status"]
-            }
-        
-        if not self.current_session_plan: # If it's not a new day but no plan loaded (e.g., first run today)
-             self.current_session_plan = self._generate_session_plan()
-             self.session_data['current_session_plan'] = {
-                "state": self.current_session_plan["state"],
-                "session_number": self.current_session_plan["session_number"],
-                "games": [gm.value for gm in self.current_session_plan["games"]], # Store as strings
-                "message": self.current_session_plan["message"],
-                "game_status": self.current_session_plan["game_status"]
-            }
-             self._save_session_data()
-        
-        return False
-
-    def _generate_session_plan(self) -> Dict:
-        """Generates a structured daily session plan."""
-        plan_games = []
-        available_games = ALL_GAME_MODES.copy()
-        
-        # 1st game: Random
-        plan_games.append(random.choice(available_games))
-        available_games.remove(plan_games[-1])
-
-        # 2nd game: Random from remaining
-        plan_games.append(random.choice(available_games))
-        available_games.remove(plan_games[-1])
-
-        # 3rd game: Random from remaining
-        plan_games.append(random.choice(available_games))
-        available_games.remove(plan_games[-1])
-
-        # 4th game: Worst performing game (or random if no performance data)
-        worst_game = self._get_worst_performing_game()
-        plan_games.append(worst_game)
-
-        # 5th game: User choice (placeholder, will be "Free Play" for now)
-        # Or, if only one game left, use that.
-        if len(available_games) == 1:
-            plan_games.append(available_games[0])
-        else:
-            plan_games.append(GameMode.FREE_PLAY) # Indicates user can choose in UI
-
-        game_status = {game.value: "Pending" for game in plan_games if game != GameMode.FREE_PLAY}
-        if GameMode.FREE_PLAY in plan_games:
-            game_status[GameMode.FREE_PLAY.value] = "Select any game"
-
-        return {
-            "state": "structured_session",
-            "session_number": self.session_data['structured_sessions_completed_today'] + 1,
-            "games": plan_games,
-            "message": "Complete all games for daily training!",
-            "game_status": game_status
-        }
-
-
-    def _get_worst_performing_game(self) -> GameMode:
-        """Determines the worst performing game based on average score."""
-        if not self.session_data['game_performance']:
-            return random.choice(ALL_GAME_MODES)
-
-        worst_game_mode = None
-        lowest_avg_score = float('inf')
-        
-        for mode in ALL_GAME_MODES:
-            perf = self.session_data['game_performance'][mode.value]
-            if perf['play_count'] > 0 and perf['avg_score'] < lowest_avg_score:
-                lowest_avg_score = perf['avg_score']
-                worst_game_mode = mode
-        
-        return worst_game_mode if worst_game_mode else random.choice(ALL_GAME_MODES)
-
-    def get_session_plan(self) -> Dict:
-        """
-        Returns the current daily session plan.
-        If structured sessions are completed, suggests free play.
-        """
-        if not self.current_session_plan:
-            self.new_day_check() # Ensure plan is generated
-            if not self.current_session_plan: # Fallback if new_day_check somehow failed
-                return {
-                    "state": "standard_menu",
-                    "message": "No session plan available.",
-                    "options": ["Play Finger Invaders", "Calibrate", "High Scores", "Quit"]
-                }
-
-
-        if self.session_data['structured_sessions_completed_today'] >= self.DAILY_SESSIONS_COUNT:
-            return {
-                "state": "post_structured_menu",
-                "message": "You've completed your daily structured sessions!",
-                "options": self.POST_STRUCTURED_MENU_OPTIONS
-            }
-        
-        # Check if all games in current structured session are "Played"
-        all_played = True
-        for game_mode_enum in self.current_session_plan['games']:
-            if game_mode_enum != GameMode.FREE_PLAY and self.current_session_plan['game_status'].get(game_mode_enum.value) != "Played":
-                all_played = False
-                break
-        
-        if all_played and self.current_session_plan['state'] == 'structured_session':
-            # This session's games are done, but maybe not all daily sessions
-            self.session_data['structured_sessions_completed_today'] += 1
-            self.session_data['last_session_number'] = self.current_session_plan['session_number']
-            self._save_session_data()
-            return self.new_day_check() or self.get_session_plan() # Try to generate next session or show post-menu
-
-        return self.current_session_plan
-
-    def record_session_play(self, game_mode: GameMode, score: int, duration_seconds: float):
-        """
-        Records play data for a game mode.
-
-        Args:
-            game_mode: The GameMode that was played.
-            score: The score achieved in the session.
-            duration_seconds: How long the session lasted.
-        """
-        self.session_data['total_playtime_seconds'] += duration_seconds
-
-        perf = self.session_data['game_performance'][game_mode.value]
-        perf['score_history'].append(score)
-        perf['last_played'] = datetime.now()
-        perf['play_count'] += 1
-        
-        # Recalculate average score
-        if perf['score_history']:
-            perf['avg_score'] = sum(perf['score_history']) / len(perf['score_history'])
-
-        # Mark game as played in current session plan
-        if self.current_session_plan and self.current_session_plan['state'] == 'structured_session':
-            if game_mode.value in self.current_session_plan['game_status']:
-                self.current_session_plan['game_status'][game_mode.value] = "Played"
-            else: # Must be a free play game during structured session
-                self.current_session_plan['game_status'][game_mode.value] = "Played (Free Play)"
-
-
-        self.session_data['sessions_today'] += 1
-        self._save_session_data()
-
-    def get_total_playtime(self) -> float:
-        return self.session_data['total_playtime_seconds']
-
-    def get_game_playtime(self, game_mode: GameMode) -> float:
-        """Get accumulated playtime for a specific game mode (in seconds)."""
-        if 'game_playtime' not in self.session_data:
-            self.session_data['game_playtime'] = {mode.value: 0.0 for mode in ALL_GAME_MODES}
-        return self.session_data['game_playtime'].get(game_mode.value, 0.0)
-
-    def add_game_playtime(self, game_mode: GameMode, seconds: float):
-        """Add playtime to a specific game mode."""
-        if 'game_playtime' not in self.session_data:
-            self.session_data['game_playtime'] = {mode.value: 0.0 for mode in ALL_GAME_MODES}
-        self.session_data['game_playtime'][game_mode.value] = (
-            self.session_data['game_playtime'].get(game_mode.value, 0.0) + seconds
+    @classmethod
+    def from_json(cls, data: Dict) -> 'DailySessionState':
+        return cls(
+            last_played_date=date.fromisoformat(data["last_played_date"]),
+            daily_game_order=[GameMode(gm) for gm in data["daily_game_order"]],
+            current_segment=data["current_segment"],
+            segment_playtime_ms=data["segment_playtime_ms"],
+            segment_scores=data["segment_scores"],
+            lowest_score_game=GameMode(data["lowest_score_game"]) if data["lowest_score_game"] else None,
+            is_locked_for_day=data["is_locked_for_day"],
+            game_progression_track=[GameMode(gm) for gm in data.get("game_progression_track", [])]
         )
-        self._save_session_data()
 
-    def is_game_time_complete(self, game_mode: GameMode, required_seconds: float = 300.0) -> bool:
-        """Check if a game has reached its required playtime (default 5 minutes)."""
-        return self.get_game_playtime(game_mode) >= required_seconds
+class DailySessionManager:
+    def __init__(self):
+        self.state: DailySessionState = self._load_daily_state()
+        self._check_for_new_day()
 
-    def update(self, dt: float):
-        """Placeholder for future timed events within the session manager."""
-        pass
+    def _load_daily_state(self) -> DailySessionState:
+        if os.path.exists(DAILY_SESSION_FILE):
+            try:
+                with open(DAILY_SESSION_FILE, 'r') as f:
+                    data = json.load(f)
+                    return DailySessionState.from_json(data)
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Error loading daily session state: {e}. Starting fresh.")
+        return DailySessionState() # Return default empty state
+
+    def _save_daily_state(self):
+        try:
+            os.makedirs(os.path.dirname(DAILY_SESSION_FILE), exist_ok=True)
+            with open(DAILY_SESSION_FILE, 'w') as f:
+                json.dump(self.state.to_json(), f, indent=2)
+        except IOError as e:
+            print(f"Error saving daily session state: {e}")
+
+    def _check_for_new_day(self):
+        today = datetime.now().date()
+        if self.state.last_played_date != today:
+            self._reset_daily_session(today)
+        self._save_daily_state()
+
+    def _reset_daily_session(self, today: date):
+        print(f"New day detected ({today}). Resetting daily session.")
+        self.state = DailySessionState(last_played_date=today)
+        
+        # Randomize the order of the three main games for the first 3 segments
+        main_games = [GameMode.FINGER_INVADERS, GameMode.EGG_CATCHER, GameMode.PING_PONG]
+        random.shuffle(main_games)
+        self.state.daily_game_order = main_games
+        
+        # Initialize the game progression track
+        self.state.game_progression_track = [main_games[0], main_games[1], main_games[2], GameMode.FREE_PLAY, GameMode.FREE_PLAY] # Placeholder for segments 4 & 5
+        self.state.current_segment = 1 # Start with the first segment
+        self.state.is_locked_for_day = False
+        self.state.segment_playtime_ms = 0 # Reset playtime for the new segment
+        self.state.segment_scores = {} # Reset scores
+
+    def get_current_playable_games(self) -> List[GameMode]:
+        if self.state.is_locked_for_day:
+            return []
+
+        if self.state.current_segment == 0: # Before any segment started (should be handled by _check_for_new_day)
+            self._reset_daily_session(datetime.now().date())
+            self._save_daily_state()
+        
+        if self.state.current_segment <= 3:
+            # First 3 segments: only the current game in the randomized order is available
+            current_game = self.state.daily_game_order[self.state.current_segment - 1]
+            return [current_game]
+        elif self.state.current_segment == 4:
+            # 4th segment: lowest scoring game from the first 3
+            if self.state.lowest_score_game:
+                return [self.state.lowest_score_game]
+            else:
+                # Fallback if somehow lowest_score_game wasn't set (shouldn't happen)
+                return [] 
+        elif self.state.current_segment == 5:
+            # 5th segment: all games are available (free play)
+            return ALL_GAME_MODES
+        
+        return [] # Should not reach here if logic is correct
+
+    def get_current_segment_info(self) -> Dict:
+        if self.state.is_locked_for_day:
+            return {
+                "segment_number": "N/A",
+                "total_segments": 5,
+                "current_game": "Locked",
+                "time_remaining_ms": 0,
+                "message": "All sessions completed for today!"
+            }
+
+        segment_game: Optional[GameMode] = None
+        message: str = ""
+
+        if self.state.current_segment <= 3:
+            segment_game = self.state.daily_game_order[self.state.current_segment - 1]
+            message = f"Play {segment_game.name.replace('_', ' ').title()} for 5 minutes."
+        elif self.state.current_segment == 4:
+            segment_game = self.state.lowest_score_game
+            if segment_game:
+                message = f"Play your lowest-scoring game: {segment_game.name.replace('_', ' ').title()} for 5 minutes."
+            else:
+                message = "Determining lowest scoring game..." # Should not happen if logic is correct
+        elif self.state.current_segment == 5:
+            segment_game = None # User can choose any game
+            message = "Final session: Play any game for 5 minutes!"
+        
+        time_remaining_ms = max(0, SESSION_SEGMENT_DURATION - self.state.segment_playtime_ms)
+        
+        return {
+            "segment_number": self.state.current_segment,
+            "total_segments": 5,
+            "current_game": segment_game,
+            "time_remaining_ms": time_remaining_ms,
+            "message": message
+        }
+
+    def update_segment_playtime(self, game_mode_played: GameMode, elapsed_ms: int, current_score: int):
+        if self.state.is_locked_for_day:
+            return
+
+        # Ensure the game being updated is the one currently expected, or a free play game in segment 5
+        if not (self.state.current_segment == 5 and game_mode_played in ALL_GAME_MODES) and \
+           not (self.state.current_segment <= 3 and game_mode_played == self.state.daily_game_order[self.state.current_segment - 1]) and \
+           not (self.state.current_segment == 4 and game_mode_played == self.state.lowest_score_game):
+            # This case means a game was played that wasn't the "current" game for the segment.
+            # This could happen if the user somehow forces a game or if there's a bug in UI enabling.
+            # For now, we'll just log and ignore the playtime towards segment progression.
+            print(f"Warning: Playtime for {game_mode_played.name} updated, but it's not the expected game for segment {self.state.current_segment}.")
+            return
+            
+        self.state.segment_playtime_ms += elapsed_ms
+
+        if self.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
+            self.state.segment_playtime_ms = SESSION_SEGMENT_DURATION # Cap at max duration
+
+            # Record score for this segment (relevant for first 3 and 4th)
+            if self.state.current_segment <= 4:
+                self.state.segment_scores[game_mode_played.value] = current_score
+
+            self.state.current_segment += 1
+            self.state.segment_playtime_ms = 0 # Reset for next segment
+
+            if self.state.current_segment == 4:
+                # After 3rd segment, determine lowest scoring game
+                if len(self.state.segment_scores) == 3:
+                    self._determine_lowest_score_game()
+                else:
+                    # Fallback if not all 3 scores were recorded (shouldn't happen with forced playtime)
+                    print("Warning: Not all 3 segment scores recorded for lowest score calculation.")
+                    self.state.lowest_score_game = random.choice(ALL_GAME_MODES) # Default to random
+                self.state.game_progression_track[3] = self.state.lowest_score_game # Update track
+
+            elif self.state.current_segment > 5:
+                # All 5 segments completed
+                self.state.is_locked_for_day = True
+
+        self._save_daily_state()
+
+    def _determine_lowest_score_game(self):
+        if not self.state.segment_scores:
+            self.state.lowest_score_game = random.choice(ALL_GAME_MODES)
+            return
+
+        lowest_score = float('inf')
+        lowest_game: Optional[GameMode] = None
+
+        # Check only the games from the daily_game_order for scores
+        for game_mode in self.state.daily_game_order:
+            score = self.state.segment_scores.get(game_mode.value)
+            if score is not None and score < lowest_score:
+                lowest_score = score
+                lowest_game = game_mode
+        
+        self.state.lowest_score_game = lowest_game if lowest_game else random.choice(ALL_GAME_MODES)
+
+    def is_day_locked(self) -> bool:
+        return self.state.is_locked_for_day
+
+    def get_current_game_for_segment(self) -> Optional[GameMode]:
+        if self.state.is_locked_for_day or self.state.current_segment == 0:
+            return None
+        if self.state.current_segment <= 3:
+            return self.state.daily_game_order[self.state.current_segment - 1]
+        elif self.state.current_segment == 4:
+            return self.state.lowest_score_game
+        elif self.state.current_segment == 5:
+            return None # Means user can choose, handled by get_current_playable_games
+        return None

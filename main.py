@@ -28,7 +28,7 @@ from game.game_engine import GameEngine, GameState
 from game.high_scores import HighScoreManager
 from game.egg_catcher import EggCatcher
 from game.ping_pong import PingPong
-from game.session_manager import SessionManager
+from game.session_manager import DailySessionManager
 from game.reward_manager import RewardManager
 from tracking.leap_controller import LeapController, SimulatedLeapController
 from tracking.hand_tracker import HandTracker
@@ -98,7 +98,7 @@ class FingerInvaders:
         self.ping_pong_game = PingPong(self.hand_tracker, self.calibration)
 
         # Initialize session manager and reward manager
-        self.session_manager = SessionManager(self.is_test_mode)
+        self.daily_session_manager = DailySessionManager()
         self.reward_manager = RewardManager()
 
         # Initialize high score manager and load persisted high score
@@ -129,6 +129,7 @@ class FingerInvaders:
         self.hand_renderer = OpenGLHandRenderer(self.screen) # 3D renderer still uses main screen
         self.calibration_renderer = CalibrationHandRenderer(self.pygame_2d_surface)
         self.old_hand_renderer = OldHandRenderer(self.pygame_2d_surface) # Keep for angle bars etc.
+
 
         # Keyboard simulation mapping (for testing without Leap Motion)
         self.key_finger_map = {
@@ -408,11 +409,10 @@ class FingerInvaders:
 
         # Menu navigation
         elif state == GameState.MENU:
-            session_plan = self.session_manager.get_session_plan()
             if event.key == pygame.K_UP:
-                self.menu_ui.move_selection(-1, 4, self.calibration.has_calibration(), session_plan)
+                self.menu_ui.move_selection(-1, self.daily_session_manager.is_day_locked(), self.calibration.has_calibration(), self.daily_session_manager.get_current_segment_info(), self.daily_session_manager.get_current_playable_games())
             elif event.key == pygame.K_DOWN:
-                self.menu_ui.move_selection(1, 4, self.calibration.has_calibration(), session_plan)
+                self.menu_ui.move_selection(1, self.daily_session_manager.is_day_locked(), self.calibration.has_calibration(), self.daily_session_manager.get_current_segment_info(), self.daily_session_manager.get_current_playable_games())
             elif event.key == pygame.K_RETURN:
                 self._handle_menu_selection()
 
@@ -464,25 +464,17 @@ class FingerInvaders:
         session_duration_seconds = session_duration_ms / 1000
 
         game_mode = self.game_engine.current_game_mode
+        score = 0
 
-        # Get game-specific state
+        # Get game-specific state and score
         if game_mode == GameMode.FINGER_INVADERS:
             game_state = self.game_engine.get_game_state()
             score = game_state['score']
-            # Save accumulated playtime for this game
-            self.session_manager.add_game_playtime(game_mode, self.game_engine.elapsed_time)
         elif game_mode == GameMode.EGG_CATCHER:
             game_state = self.egg_catcher_game.get_game_state()
             score = game_state['score']
-            # Save accumulated playtime for this game
-            self.session_manager.add_game_playtime(game_mode, self.egg_catcher_game.elapsed_time)
         elif game_mode == GameMode.PING_PONG:
             game_state = self.ping_pong_game.get_game_state()
-            score = game_state['score']
-            # Save accumulated playtime for this game
-            self.session_manager.add_game_playtime(game_mode, self.ping_pong_game.elapsed_time)
-        else:
-            game_state = self.game_engine.get_game_state()
             score = game_state['score']
 
         lives = game_state.get('lives', 0)
@@ -491,8 +483,8 @@ class FingerInvaders:
         self.session_logger.end_session(score, lives, session_duration_seconds)
         self.trial_summary.end_session(score, game_mode=game_mode.value)
 
-        # Record session in session manager
-        self.session_manager.record_session_play(game_mode, score, session_duration_seconds)
+        # Update the daily session manager with playtime and score
+        self.daily_session_manager.update_segment_playtime(game_mode, session_duration_ms, score)
 
         # Update total playtime for rewards
         unlocked_rewards = self.reward_manager.add_playtime(session_duration_seconds)
@@ -511,69 +503,61 @@ class FingerInvaders:
     def _handle_menu_selection(self):
         """Handle menu option selection."""
         option = self.menu_ui.get_selected_option()
-        session_plan = self.session_manager.get_session_plan()
-
-        # Check for new day and update session plan if needed
-        if self.session_manager.new_day_check():
-            session_plan = self.session_manager.get_session_plan()
         
-        # Determine actual selected item based on menu state
-        if session_plan['state'] == 'structured_session':
-            # Options: Calibrate, Game1, Game2, ..., Quit
-            if option == 0:  # Calibrate
-                self.game_engine.state = GameState.CALIBRATION_MENU
-            elif option <= len(session_plan['games']):
-                # Game selection (option 1 = first game, etc.)
-                game_index = option - 1
-                selected_game_mode = session_plan['games'][game_index]
+        # Always allow calibration and quitting
+        if option == 0: # Calibrate
+            self.game_engine.state = GameState.CALIBRATION_MENU
+            return
+        elif option == self.menu_ui.get_current_menu_options_count() - 1: # Last option is always Quit
+            self.running = False
+            return
+        
+        if self.game_engine.state == GameState.MENU:
+            if self.daily_session_manager.is_day_locked():
+                # Menu options are implicitly Calibrate, Quit. We already handled them above.
+                pass
+            else:
+                playable_games = self.daily_session_manager.get_current_playable_games()
+                current_segment_info = self.daily_session_manager.get_current_segment_info()
 
-                # Check if this game is unlocked (first incomplete game or already played)
-                first_incomplete_idx = self._get_first_incomplete_game_index(session_plan)
-                if game_index > first_incomplete_idx:
-                    # Game is locked - don't allow selection
-                    return
-
-                # In simulation mode, skip waiting for hands
+                if current_segment_info["segment_number"] == 5:
+                    # In segment 5, all games are playable. Option index starts after Calibrate (0).
+                    # So option 1 is FI, 2 is EC, 3 is PP.
+                    if option == 1: # Finger Invaders
+                        selected_game_mode = GameMode.FINGER_INVADERS
+                    elif option == 2: # Egg Catcher
+                        selected_game_mode = GameMode.EGG_CATCHER
+                    elif option == 3: # Ping Pong
+                        selected_game_mode = GameMode.PING_PONG
+                    else:
+                        return # Invalid selection for this segment
+                else:
+                    # For segments 1-4, only one specific game is playable.
+                    # Option index 1 will always be this game.
+                    expected_game = current_segment_info["current_game"]
+                    if option == 1 and expected_game:
+                        selected_game_mode = expected_game
+                    else:
+                        return # Invalid selection for this segment or no game available
+                
+                # If a game was selected, proceed to start it
                 if self.is_test_mode:
                     self._start_game(selected_game_mode)
                 else:
                     self.game_engine.state = GameState.WAITING_FOR_HANDS
                     self.waiting_countdown = None
                     self.game_engine.pending_game_mode = selected_game_mode
-            else:  # Quit
-                self.running = False
-        elif session_plan['state'] == 'post_structured_menu':
-            if option == 0: # Calibrate
-                self.game_engine.state = GameState.CALIBRATION_MENU
-            elif option == 1: # Free Play
-                self.game_engine.state = GameState.GAME_SELECTION_MENU
-            elif option == 2: # High Scores
-                self.game_engine.state = GameState.HIGH_SCORES
-            elif option == 3: # Quit
-                self.running = False
-        else: # Main menu logic (e.g., initial launch, no structured session)
-            if option == 0 and self.calibration.has_calibration(): # Play Finger Invaders (default)
-                # In simulation mode, skip waiting for hands
-                if self.is_test_mode:
-                    self._start_game(GameMode.FINGER_INVADERS)
-                else:
-                    self.game_engine.state = GameState.WAITING_FOR_HANDS
-                    self.waiting_countdown = None
-                    self.game_engine.pending_game_mode = GameMode.FINGER_INVADERS
-            elif option == 1: # Calibrate
-                self.game_engine.state = GameState.CALIBRATION_MENU
-            elif option == 2: # High Scores
-                self.game_engine.state = GameState.HIGH_SCORES
-            elif option == 3: # Quit
-                self.running = False
 
-    def _get_first_incomplete_game_index(self, session_plan: dict) -> int:
-        """Get the index of the first game that hasn't been played yet."""
-        for i, game_mode in enumerate(session_plan['games']):
-            status = session_plan['game_status'].get(game_mode.value, "Pending")
-            if status != "Played":
-                return i
-        return len(session_plan['games'])  # All games completed
+        elif self.game_engine.state == GameState.GAME_SELECTION_MENU: # This state might not be needed anymore
+            # For now, let's assume menu handles all game selections
+            pass
+        
+        # High Scores (option 2 if not game selection menu)
+        if self.game_engine.state == GameState.MENU and not self.daily_session_manager.is_day_locked() and option == len(playable_games) + 1:
+            self.game_engine.state = GameState.HIGH_SCORES
+
+    # The _get_first_incomplete_game_index method is no longer needed
+
 
 
 
@@ -627,16 +611,12 @@ class FingerInvaders:
     def _update(self, dt: float):
         """Update game state."""
         state = self.game_engine.state
+        dt_ms = int(dt * (1000 / FPS)) # Convert dt (normalized to 60fps) to milliseconds
 
-        # Update session manager (handles daily session logic, game suggestions, etc.)
-        self.session_manager.update(dt)
-
-        # Update session timer if a session is active
-        if self.session_start_time > 0:
-            self.session_timer = (pygame.time.get_ticks() - self.session_start_time) / 1000
-
-        if state == GameState.FINGER_INVADERS:
-            events = self.game_engine.update(dt)
+        # Update session timer - now reflects current segment's playtime
+        self.session_timer = self.daily_session_manager.state.segment_playtime_ms / 1000.0 if self.daily_session_manager.state.current_segment != 0 else 0
+        
+        # Current score placeholder
 
             # Get current hand data for logging
             hand_data = self.leap_controller.update()
@@ -703,24 +683,30 @@ class FingerInvaders:
             elif events['score_change'] < 0:
                 self.game_ui.trigger_score_pulse(False)
 
-            # Check if game completed (time-based)
-            if self.game_engine.game_over:
-                self.game_engine.state = GameState.GAME_OVER
+            # Check for segment completion or game over
+            if self.game_engine.game_over: # This means lives ran out
                 self._end_session()
-
-            for pos in events['missile_destroyed']:
-                self.game_ui.add_explosion(pos[0], pos[1])
-                self.sound_manager.play_explosion()
-
-            # Update hand highlighting
-            self.old_hand_renderer.set_highlighted_fingers(self.game_engine.get_highlighted_fingers())
-
-            # Update finger angle data for display
-            finger_angles = self.hand_tracker.get_all_finger_angles()
-            self.old_hand_renderer.set_finger_angles(
-                finger_angles,
-                self.calibration.calibration_data.get('baseline_angles', {})
-            )
+                self.game_engine.state = GameState.GAME_OVER
+            elif self.daily_session_manager.state.current_segment != 0: # Ensure session is active before updating playtime
+                self.daily_session_manager.update_segment_playtime(current_game_mode, dt_ms, current_score)
+                if self.daily_session_manager.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
+                    self._end_session()
+                    self.game_engine.state = GameState.MENU
+            elif self.daily_session_manager.state.current_segment != 0: # Ensure session is active before updating playtime
+                self.daily_session_manager.update_segment_playtime(current_game_mode, dt_ms, current_score)
+                if self.daily_session_manager.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
+                    self._end_session()
+                    self.game_engine.state = GameState.MENU
+            elif self.daily_session_manager.state.current_segment != 0: # Ensure session is active before updating playtime
+                self.daily_session_manager.update_segment_playtime(current_game_mode, dt_ms, current_score)
+                if self.daily_session_manager.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
+                    self._end_session()
+                    self.game_engine.state = GameState.MENU
+            elif self.daily_session_manager.state.current_segment != 0: # Ensure session is active before updating playtime
+                self.daily_session_manager.update_segment_playtime(current_game_mode, dt_ms, current_score)
+                if self.daily_session_manager.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
+                    self._end_session()
+                    self.game_engine.state = GameState.MENU # Go back to menu for next segment
 
         elif state == GameState.EGG_CATCHER:
             events = self.egg_catcher_game.update(dt)
@@ -787,6 +773,7 @@ class FingerInvaders:
                 self.game_ui.trigger_lives_flash()
                 self.sound_manager.play_life_lost()
 
+            # Check for segment completion or game over
             if self.egg_catcher_game.game_over:
                 self.game_engine.state = GameState.GAME_OVER
                 self._end_session()
@@ -856,6 +843,8 @@ class FingerInvaders:
             if events.get('ball_missed'):
                 self.sound_manager.play_miss()
 
+            # Check for segment completion or game over
+            # Check for segment completion or game over
             if self.ping_pong_game.game_over:
                 self.game_engine.state = GameState.GAME_OVER
                 self._end_session()
@@ -1089,8 +1078,37 @@ class FingerInvaders:
         state = self.game_engine.state
 
         if state == GameState.MENU:
-            session_plan = self.session_manager.get_session_plan()
-            self.menu_ui.draw_main_menu(self.calibration.has_calibration(), session_plan=session_plan)
+            # Determine menu options based on daily session state
+            if self.daily_session_manager.is_day_locked():
+                menu_options_text = ["Calibrate", "Quit"]
+                menu_message = self.daily_session_manager.get_current_segment_info()["message"]
+                current_game_to_highlight = None
+            else:
+                current_segment_info = self.daily_session_manager.get_current_segment_info()
+                playable_games = self.daily_session_manager.get_current_playable_games()
+
+                menu_options_text = ["Calibrate"]
+                current_game_to_highlight = current_segment_info["current_game"] # For menu selection visual
+
+                if current_segment_info["segment_number"] == 5:
+                    # For segment 5, all games are playable, list them out
+                    for game_mode in ALL_GAME_MODES:
+                        menu_options_text.append(game_mode.name.replace('_', ' ').title())
+                elif current_game_to_highlight:
+                    # For segments 1-4, only one game is playable
+                    menu_options_text.append(current_game_to_highlight.name.replace('_', ' ').title())
+                
+                menu_options_text.append("High Scores") # Always an option after Calibrate and games
+                menu_options_text.append("Quit")
+                menu_message = current_segment_info["message"]
+
+            self.menu_ui.draw_main_menu(
+                self.calibration.has_calibration(),
+                daily_session_locked=self.daily_session_manager.is_day_locked(),
+                menu_message=menu_message,
+                menu_options_text=menu_options_text,
+                current_game_to_highlight=current_game_to_highlight
+            )
 
             # Show hand position overlay if calibration exists
             if self.calibration.has_calibration():
