@@ -20,14 +20,22 @@ class SessionLogger:
         Args:
             log_directory: Directory to store session log files
         """
-        self.log_directory = log_directory
+        self.log_directory = self._resolve_log_directory(log_directory)
         self.session_id = None
         self.session_file = None
         self.session_data = None
         self.session_start_time = None
 
         # Ensure log directory exists
-        os.makedirs(log_directory, exist_ok=True)
+        os.makedirs(self.log_directory, exist_ok=True)
+
+    def _resolve_log_directory(self, log_directory: str) -> str:
+        """Resolve log directory relative to repo root when a relative path is used."""
+        if os.path.isabs(log_directory):
+            return log_directory
+
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        return os.path.join(base_dir, log_directory)
 
     def start_session(self, calibration_data: Dict = None, game_mode: str = "Unknown", is_test_mode: bool = False):
         """

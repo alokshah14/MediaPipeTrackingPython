@@ -52,6 +52,7 @@ class SessionSummary:
     end_time: str
     duration_seconds: float
     game_mode: str # New field
+    is_test_mode: bool
 
     # Trial counts
     total_trials: int
@@ -88,20 +89,30 @@ class TrialSummaryExporter:
         Args:
             output_directory: Directory to save summary files
         """
-        self.output_directory = output_directory
+        self.output_directory = self._resolve_output_directory(output_directory)
         self.session_id: Optional[str] = None
         self.session_start_time: Optional[datetime] = None
         self.session_start_timestamp: Optional[float] = None
         self.trials: List[TrialRecord] = []
+        self.is_test_mode: bool = False
 
-        os.makedirs(output_directory, exist_ok=True)
+        os.makedirs(self.output_directory, exist_ok=True)
 
-    def start_session(self):
+    def _resolve_output_directory(self, output_directory: str) -> str:
+        """Resolve output directory relative to repo root when a relative path is used."""
+        if os.path.isabs(output_directory):
+            return output_directory
+
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        return os.path.join(base_dir, output_directory)
+
+    def start_session(self, is_test_mode: bool = False):
         """Start a new session for recording trials."""
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_start_time = datetime.now()
         self.session_start_timestamp = datetime.now().timestamp()
         self.trials = []
+        self.is_test_mode = is_test_mode
         print(f"Trial summary session started: {self.session_id}")
 
     def record_trial(
@@ -211,6 +222,7 @@ class TrialSummaryExporter:
             end_time=end_time.isoformat(),
             duration_seconds=round(duration, 2),
             game_mode=game_mode,
+            is_test_mode=self.is_test_mode,
             total_trials=total,
             correct_trials=total - wrong_finger_count,
             wrong_finger_trials=wrong_finger_count,
@@ -275,6 +287,7 @@ class TrialSummaryExporter:
         self.session_start_time = None
         self.session_start_timestamp = None
         self.trials = []
+        self.is_test_mode = False
 
         return result
 
@@ -340,6 +353,7 @@ class TrialSummaryExporter:
             writer.writerow(['end_time', summary.end_time])
             writer.writerow(['duration_seconds', summary.duration_seconds])
             writer.writerow(['game_mode', summary.game_mode])
+            writer.writerow(['is_test_mode', summary.is_test_mode])
             writer.writerow(['total_trials', summary.total_trials])
             writer.writerow(['correct_trials', summary.correct_trials])
             writer.writerow(['wrong_finger_trials', summary.wrong_finger_trials])
