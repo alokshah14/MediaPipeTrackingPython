@@ -27,11 +27,13 @@ class OpenGLHandRenderer:
         self.hand_area_height = HAND_DISPLAY_HEIGHT
 
         # Screen dimensions (may differ from game dimensions in fullscreen)
-        self.screen_width = WINDOW_WIDTH
-        self.screen_height = WINDOW_HEIGHT
+        self.screen_width, self.screen_height = screen.get_size()
 
         # Initialize OpenGL for this section
         self._init_opengl()
+
+        # Initialize render resources and state
+        self.set_screen_size(self.screen_width, self.screen_height)
 
     def set_screen_size(self, width: int, height: int):
         """Update screen dimensions for fullscreen scaling."""

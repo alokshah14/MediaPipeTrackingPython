@@ -319,8 +319,8 @@ class EggCatcher:
 
     def _increase_difficulty(self):
         """Increase difficulty after correct catches."""
-        if self.correct_streak % 5 == 0:  # Every 5 correct
-            self.difficulty_multiplier = min(2.0, self.difficulty_multiplier + 0.1)
+        # Scale up on every correct press to keep pace with performance
+        self.difficulty_multiplier = min(3.0, self.difficulty_multiplier + 0.08)
 
     def _decrease_difficulty(self):
         """Decrease difficulty after mistakes."""
@@ -425,15 +425,7 @@ class EggCatcher:
         zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, CATCH_ZONE_TOP + 15))
         surface.blit(zone_label, zone_rect)
 
-        # Draw remaining time
-        remaining = self.get_remaining_time()
-        mins = int(remaining // 60)
-        secs = int(remaining % 60)
-        time_font = pygame.font.Font(None, 36)
-        time_text = f"Time Left: {mins}:{secs:02d}"
-        time_label = time_font.render(time_text, True, (255, 255, 100))
-        time_rect = time_label.get_rect(topright=(WINDOW_WIDTH - 20, GAME_AREA_TOP + 10))
-        surface.blit(time_label, time_rect)
+        # Time left is rendered in the main HUD
 
     def get_highlighted_fingers(self) -> List[str]:
         """Get fingers that should be highlighted (eggs in catch zone)."""

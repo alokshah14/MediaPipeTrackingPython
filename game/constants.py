@@ -66,7 +66,7 @@ DIFFICULTY_LEVELS = {
 }
 
 # Starting values
-STARTING_LIVES = 3
+STARTING_LIVES = 0
 STARTING_SCORE = 0
 STARTING_DIFFICULTY = 'Easy'
 
@@ -102,6 +102,7 @@ from enum import Enum
 
 class GameState(Enum):
     MENU = 'menu'
+    CONNECT_DEVICE = 'connect_device'
     CALIBRATION_MENU = 'calibration_menu'
     CALIBRATING = 'calibrating'
     WAITING_FOR_HANDS = 'waiting_for_hands'  # Pre-game: waiting for hands in position

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from game.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, GAME_AREA_TOP, GAME_AREA_BOTTOM,
     STARTING_LIVES, FINGER_NAMES, FINGER_DISPLAY_NAMES, LANE_WIDTH,
-    DIFFICULTY_LEVELS
+    DIFFICULTY_LEVELS, GameMode, ALL_GAME_MODES
 )
 from .colors import (
     WHITE, BLACK, RED, GREEN, YELLOW, GRAY, DARK_GRAY,
@@ -255,7 +255,7 @@ class GameUI:
             streak_render = self.fonts['medium'].render(streak_text, True, YELLOW)
             self.surface.blit(streak_render, (WINDOW_WIDTH // 2 - streak_render.get_width() // 2, 40))
 
-    def draw_time_hud(self, score: int, remaining_time: float, difficulty: str, streak: int = 0):
+    def draw_time_hud(self, score: int, remaining_time: float, difficulty: str, streak: int = 0, speed_text: str = ""):
         """
         Draw time-based HUD (no lives, shows remaining time).
 
@@ -304,6 +304,13 @@ class GameUI:
         diff_value = self.fonts['medium'].render(difficulty.upper(), True, diff_color)
         self.surface.blit(diff_label, (WINDOW_WIDTH - 200, 15))
         self.surface.blit(diff_value, (WINDOW_WIDTH - 200, 35))
+
+        # Speed (optional)
+        if speed_text:
+            speed_label = self.fonts['small'].render("SPEED", True, HUD_TEXT)
+            speed_value = self.fonts['small'].render(speed_text, True, WHITE)
+            self.surface.blit(speed_label, (WINDOW_WIDTH - 200, 65))
+            self.surface.blit(speed_value, (WINDOW_WIDTH - 200, 85))
 
         # Streak (if any)
         if streak > 0:
@@ -553,6 +560,37 @@ class MenuUI:
         inst = self.fonts['small'].render("Use UP/DOWN arrows to select, ENTER to confirm", True, (100, 100, 150))
         inst_rect = inst.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 50))
         self.surface.blit(inst, inst_rect)
+
+    def draw_connect_device(self, message: str = ""):
+        """Draw the connect-device screen."""
+        self.surface.fill(BACKGROUND)
+
+        title = self.fonts['title'].render("CONNECT LEAP MOTION", True, WHITE)
+        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 120))
+        self.surface.blit(title, title_rect)
+
+        body_lines = [
+            "No Leap Motion device detected.",
+            "Plug it in and make sure the Ultraleap service is running.",
+            "",
+            "Press ENTER to CHECK again.",
+            "Press ESC to quit.",
+            "",
+            "If you want keyboard simulation, launch with:",
+            "python main.py --simulation",
+        ]
+
+        y = 220
+        for line in body_lines:
+            color = YELLOW if "CHECK" in line or "--simulation" in line else GRAY
+            text = self.fonts['medium'].render(line, True, color)
+            self.surface.blit(text, (80, y))
+            y += 36
+
+        if message:
+            status = self.fonts['medium'].render(message, True, (255, 180, 100))
+            status_rect = status.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 120))
+            self.surface.blit(status, status_rect)
 
     def draw_calibration_menu(self, has_calibration: bool = False):
         """Draw the calibration start menu."""

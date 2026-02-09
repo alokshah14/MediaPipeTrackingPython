@@ -338,15 +338,7 @@ class PingPong:
         # Draw ball
         self.ball.draw(surface)
 
-        # Draw remaining time
-        remaining = self.get_remaining_time()
-        mins = int(remaining // 60)
-        secs = int(remaining % 60)
-        time_font = pygame.font.Font(None, 36)
-        time_text = f"Time Left: {mins}:{secs:02d}"
-        time_label = time_font.render(time_text, True, (255, 255, 100))
-        time_rect = time_label.get_rect(topright=(WINDOW_WIDTH - 20, GAME_AREA_TOP + 10))
-        surface.blit(time_label, time_rect)
+        # Time left is rendered in the main HUD
 
         # Draw rally count and speed
         rally_font = pygame.font.Font(None, 28)

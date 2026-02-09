@@ -11,7 +11,7 @@ DAILY_SESSION_FILE = "data/daily_session_state.json"
 
 @dataclass
 class DailySessionState:
-    last_played_date: date = field(default_factory=date.min.fromtimestamp) # Using datetime.min.fromtimestamp() to represent an "empty" date
+    last_played_date: date = field(default_factory=lambda: date.min) # Sentinel "empty" date
     daily_game_order: List[GameMode] = field(default_factory=list)
     current_segment: int = 0 # 0 for initial state, 1-5 for actual segments
     segment_playtime_ms: int = 0
