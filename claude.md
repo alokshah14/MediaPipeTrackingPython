@@ -662,43 +662,95 @@ analyzer.animate_session(save_path='session_replay.gif')
 - Added `pygame.KMOD_META` + `K_w`/`K_q` detection in `_handle_keydown()`
 - Sets `self.running = False` for clean shutdown
 
-#### Full Metrics Tracking for Ping Pong & Egg Catcher
-**User Request**: All games should track biomechanical metrics; collect reaction time both from zone entry AND from object appearance
+#### Daily Game Progression System
+**User Request**: Implement a daily game progression system with specific rules for unlocking and locking games, and selecting games based on lowest scores.
 
-**Problem**: Only Finger Invaders had kinematics/session logging. Ping Pong and Egg Catcher only did UI feedback (score pulses/sounds) with no data logging.
+**Implementation Plan**:
 
-**Implementation** - Dual Reaction Time System:
+1.  **Objective:** Create a structured daily session where users play 3 different games for 5 minutes each, followed by a 4th session playing their lowest-scoring game, and a 5th free-choice session, each lasting 5 minutes, after which all games are locked for the day.
 
-For Ping Pong and Egg Catcher, reaction time is measured two ways:
-- **`reaction_time_from_appear_ms`**: Time from when ball resets/egg spawns (top of screen) to press
-- **`reaction_time_from_zone_ms`**: Time from when ball/egg enters the hit/catch zone to press
-- Finger Invaders keeps its original `reaction_time_ms` (from missile spawn); zone RT is 0
+2.  **Core Components & Logic:**
+    *   **`game/session_manager.py` (Major update/new class `DailySessionManager`):**
+        *   **Persistence:** Implement loading/saving of daily session state (e.g., in `data/daily_session_state.json`) to track current day, game order, segment progress, and scores.
+        *   **Daily Reset:** On a new calendar day, reset session state, generate a new random order for the three games (`GameMode.FINGER_INVADERS`, `GameMode.EGG_CATCHER`, `GameMode.PING_PONG`).
+        *   **Segment Tracking:** Manage the current session segment (1-5), the game being played in that segment, and the time remaining for the current segment.
+        *   **Game Unlocking/Locking:**
+            *   **Segment 1-3:** Play a randomized game for 5 minutes. After 5 minutes, that game is disabled, and the next game in the randomized sequence becomes available.
+            *   **Segment 4 (Lowest Score):** After segments 1-3 are completed (total 15 mins playtime), calculate the lowest score among the three games played during these segments. The game with the lowest score becomes the *only* available game for this 5-minute segment.
+            *   **Segment 5 (Free Play):** After the lowest-score game segment is completed (total 20 mins playtime), all three games become available for a final 5-minute session.
+            *   **Daily Lockout:** After Segment 5 is completed (total 25 mins playtime), all games are locked for the remainder of the calendar day.
+        *   **Score Management:** Store scores for each 5-minute segment to facilitate the lowest-score selection.
+        *   **Methods:** Provide methods to get available games, current game, update segment progress, record segment scores, and check daily lockout status.
 
-**Files Changed**:
+    *   **`main.py`:**
+        *   Integrate the `DailySessionManager` to control game flow based on the daily progression logic.
+        *   Modify the main loop to handle transitions between game segments and daily lockouts.
+        *   Pass session state to UI components for rendering.
 
-1. **tracking/kinematics.py**:
-   - `TrialMetrics` dataclass: Added `reaction_time_from_zone_ms` and `reaction_time_from_appear_ms`
-   - `calculate_trial_metrics()`: New optional `zone_enter_time_ms` parameter; computes both RTs
+    *   **`ui/game_ui.py`:**
+        *   Update the game menu to visually indicate which games are currently locked, unlocked, or being played.
+        *   Display current session segment number and time remaining in the current 5-minute segment.
+        *   Show messages related to game unlocking/locking and daily progress.
 
-2. **tracking/trial_summary.py**:
-   - `TrialRecord`: Added both new RT fields
-   - CSV/JSON export includes both columns: `reaction_time_from_zone_ms`, `reaction_time_from_appear_ms`
+    *   **`game/game_engine.py`:**
+        *   Ensure game loop respects the 5-minute segment duration.
+        *   Return relevant data (game played, score, duration) to `main.py` upon segment completion.
 
-3. **tracking/session_logger.py**:
-   - Biomechanics section logs both RT values
+    *   **`game/constants.py`:**
+        *   Define `SESSION_SEGMENT_DURATION = 5 * 60 * 1000` (5 minutes in milliseconds).
 
-4. **game/ping_pong.py**:
-   - `Ball.reset()`: Records `appear_time_ms`
-   - `PingPong`: Tracks `zone_enter_time_ms` (set when ball first enters hit zone)
-   - Finger press events include `press_time_ms`, `ball_appear_time_ms`, `zone_enter_time_ms`
-   - Missed ball events include `missed_target` finger name
+### 2026-02-09
 
-5. **game/egg_catcher.py**:
-   - `Egg`: Added `zone_enter_time_ms` (set on first entry to catch zone)
-   - Finger press events include `press_time_ms`, `egg_spawn_time_ms`, `zone_enter_time_ms`
-   - Missed egg events now include `target_finger` name (changed from plain lane int to dict)
+#### Crash and Launch Fixes
+**User Report**: App crashed on launch / quit freezes / OpenGL renderer attribute error
 
-6. **main.py** - Full metrics pipeline for both games:
-   - **Egg Catcher update loop**: Calculates kinematics, logs to session_logger, records to trial_summary, shows clean trial indicator, logs missed eggs
-   - **Ping Pong update loop**: Same full pipeline — kinematics, session logging, trial summary, clean trial display, logs missed balls
-   - Both now match Finger Invaders' level of data collection
+**Fixes**:
+1. **`main.py`**:
+   - Restored full file after accidental truncation/indentation errors
+   - Re-integrated `DailySessionManager` flow (menu + segment timer + progression)
+   - Added clean shutdown helper with force-exit failsafe for hangs
+   - Menu/quit path now uses centralized shutdown request
+2. **`ui/hand_renderer_3d.py`**:
+   - Ensure 3D renderer initializes state (`pulse_phase`, quadric, camera) during `__init__`
+
+#### Daily Progression + Timer Corrections
+**User Report**: Session segment not advancing; timer resets when leaving a game
+
+**Fixes**:
+1. **`main.py`**:
+   - `_end_session()` now updates segment progress using actual session duration
+   - Avoid double-updating daily segment timer on loop transitions
+   - In-game HUD now uses segment timer; session timer only shows on menus
+
+#### Simulation Mode & Device Connect Flow
+**User Request**: Explicit simulation flag + require Leap device when not in simulation
+
+**Implementation**:
+1. **`main.py`**:
+   - Added `--simulation` CLI flag
+   - New `CONNECT_DEVICE` state with “press ENTER to check” flow
+   - If device missing, show connect screen instead of auto-switching to simulation
+2. **`tracking/leap_controller.py`**:
+   - Removed auto-fallback to simulation on missing device (prompt instead)
+3. **`ui/game_ui.py`**:
+   - Added connect-device screen UI
+
+#### HUD Consistency + Lives Removal
+**User Request**: Time + speed on all games; remove lives from Finger Invaders
+
+**Implementation**:
+1. **`main.py`**:
+   - Finger Invaders now uses time-based HUD (no lives)
+   - Egg Catcher and Ping Pong use the same HUD with time + speed
+2. **`ui/game_ui.py`**:
+   - `draw_time_hud()` now supports an optional speed display
+3. **`game/constants.py`**:
+   - `STARTING_LIVES` set to 0
+4. **`game/egg_catcher.py` / `game/ping_pong.py`**:
+   - Removed duplicate in-game time text (handled by HUD)
+
+#### Egg Catcher Difficulty Ramp
+**User Request**: Eggs should drop faster as correctness increases
+
+**Implementation**:
+- **`game/egg_catcher.py`**: Increase difficulty on every correct press (faster ramp)
