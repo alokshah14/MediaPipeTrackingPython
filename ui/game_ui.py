@@ -592,6 +592,37 @@ class MenuUI:
             status_rect = status.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 120))
             self.surface.blit(status, status_rect)
 
+    def draw_session_resume_banner(self, current_segment_info: Dict, segment_playtime_ms: int):
+        """Draw a banner showing remaining time for an in-progress segment."""
+        if not current_segment_info or current_segment_info.get("segment_number") in ("N/A", 0):
+            return
+        if segment_playtime_ms <= 0:
+            return
+
+        time_remaining_ms = current_segment_info.get("time_remaining_ms", 0)
+        minutes = int(time_remaining_ms // 60000)
+        seconds = int((time_remaining_ms % 60000) // 1000)
+        time_text = f"{minutes:02d}:{seconds:02d}"
+
+        banner_w, banner_h = 520, 60
+        x = (WINDOW_WIDTH - banner_w) // 2
+        y = 200
+
+        banner = pygame.Surface((banner_w, banner_h), pygame.SRCALPHA)
+        banner.fill((0, 0, 0, 180))
+        self.surface.blit(banner, (x, y))
+
+        title = self.fonts['small'].render("SESSION RESUME", True, (180, 220, 255))
+        self.surface.blit(title, (x + 20, y + 8))
+
+        message = current_segment_info.get("message", "Continue session")
+        msg_text = self.fonts['small'].render(message, True, WHITE)
+        self.surface.blit(msg_text, (x + 20, y + 30))
+
+        time_label = self.fonts['large'].render(time_text, True, YELLOW)
+        time_rect = time_label.get_rect(topright=(x + banner_w - 20, y + 12))
+        self.surface.blit(time_label, time_rect)
+
     def draw_calibration_menu(self, has_calibration: bool = False):
         """Draw the calibration start menu."""
         self.surface.fill(CALIBRATION_BG)

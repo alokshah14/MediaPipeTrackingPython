@@ -1171,6 +1171,12 @@ class FingerInvaders:
                 current_game_to_highlight=current_game_to_highlight
             )
 
+            # Session resume banner (only if a segment is in progress)
+            self.menu_ui.draw_session_resume_banner(
+                current_segment_info,
+                self.daily_session_manager.state.segment_playtime_ms
+            )
+
             # Show hand position overlay if calibration exists
             if self.calibration.has_calibration() and not self.is_test_mode:
                 hand_data = self.leap_controller.update()
