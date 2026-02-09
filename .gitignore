@@ -1,1 +1,9 @@
 high_scores.json
+__pycache__/
+**/__pycache__/
+.DS_Store
+data/.DS_Store
+data/daily_session_state.json
+data/rewards.json
+data/session_logs/
+session_logs/
