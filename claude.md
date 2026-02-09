@@ -754,3 +754,21 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Implementation**:
 - **`game/egg_catcher.py`**: Increase difficulty on every correct press (faster ramp)
+
+#### Angle Bars In All Games
+**User Request**: Show finger angle bars and labels in all game modes (not just Finger Invaders).
+
+**Implementation**:
+- **`main.py`**:
+  - Added old hand renderer overlays (labels, angle bars, clean-trial indicator) to Egg Catcher and Ping Pong rendering.
+  - Keeps 3D hands while ensuring visual feedback is visible during gameplay.
+
+#### Trial Summaries Include Simulation Mode
+**User Request**: Mark whether sessions were run in simulation mode in trial summaries.
+
+**Implementation**:
+- **`tracking/trial_summary.py`**:
+  - Added `is_test_mode` to session summary (CSV + JSON)
+  - Propagated flag via `start_session(is_test_mode=...)`
+- **`main.py`**:
+  - Passes `self.is_test_mode` into trial summary start
