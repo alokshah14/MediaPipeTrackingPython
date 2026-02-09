@@ -393,7 +393,10 @@ class FingerInvaders:
                 print(f"Angle bars {'enabled' if enabled else 'disabled'}")
 
         elif event.key == pygame.K_ESCAPE:
-            if state == GameState.PLAYING:
+            if state == GameState.FINGER_INVADERS:
+                self._end_session()
+                self.game_engine.state = GameState.MENU
+            elif state == GameState.PLAYING:
                 self.game_engine.pause_game()
             elif state == GameState.CONNECT_DEVICE:
                 self._request_shutdown()
@@ -503,7 +506,7 @@ class FingerInvaders:
             game_mode=game_mode.value,
             is_test_mode=self.is_test_mode
         )
-        self.trial_summary.start_session()
+        self.trial_summary.start_session(is_test_mode=self.is_test_mode)
 
     def _end_session(self, update_segment: bool = True):
         """Ends the current game session, logs data, updates high scores, and checks for rewards."""
@@ -1297,6 +1300,17 @@ class FingerInvaders:
         highlighted_fingers = set(self.egg_catcher_game.get_highlighted_fingers())
         self.hand_renderer.set_hand_data(hand_data, finger_states, highlighted_fingers)
 
+        # Hand visualization (2D elements from old renderer)
+        self.old_hand_renderer.set_highlighted_fingers(self.egg_catcher_game.get_highlighted_fingers())
+        finger_angles = self.hand_tracker.get_all_finger_angles()
+        self.old_hand_renderer.set_finger_angles(
+            finger_angles,
+            self.calibration.calibration_data.get('baseline_angles', {})
+        )
+        self.old_hand_renderer._draw_finger_labels()
+        self.old_hand_renderer._draw_angle_bars(finger_states)
+        self.old_hand_renderer._draw_clean_trial_indicator()
+
     def _render_ping_pong(self):
         """Render the Ping Pong game."""
         # Background
@@ -1322,6 +1336,17 @@ class FingerInvaders:
         finger_states = self.hand_tracker.get_all_finger_states()
         highlighted_fingers = set(self.ping_pong_game.get_highlighted_fingers())
         self.hand_renderer.set_hand_data(hand_data, finger_states, highlighted_fingers)
+
+        # Hand visualization (2D elements from old renderer)
+        self.old_hand_renderer.set_highlighted_fingers(self.ping_pong_game.get_highlighted_fingers())
+        finger_angles = self.hand_tracker.get_all_finger_angles()
+        self.old_hand_renderer.set_finger_angles(
+            finger_angles,
+            self.calibration.calibration_data.get('baseline_angles', {})
+        )
+        self.old_hand_renderer._draw_finger_labels()
+        self.old_hand_renderer._draw_angle_bars(finger_states)
+        self.old_hand_renderer._draw_clean_trial_indicator()
 
     def _render_paused(self):
         """Render the PAUSED state."""
