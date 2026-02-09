@@ -772,3 +772,17 @@ analyzer.animate_session(save_path='session_replay.gif')
   - Propagated flag via `start_session(is_test_mode=...)`
 - **`main.py`**:
   - Passes `self.is_test_mode` into trial summary start
+
+#### Jupyter 3D Visualization Import Fix
+**User Report**: `SessionAnalyzer` missing `plot_3d_session` in notebook.
+
+**Fix**:
+- **`analysis/session_analysis_demo.ipynb`**:
+  - Added module path print + `importlib.reload()` to ensure the local `analysis` module is loaded in Jupyter.
+
+#### Session Resume Banner
+**User Request**: Show a banner on the main menu indicating remaining time for an in-progress segment.
+
+**Implementation**:
+- **`ui/game_ui.py`**: Added `draw_session_resume_banner()` to render remaining time and current segment message.
+- **`main.py`**: Calls the banner in menu render when a segment has progress.
