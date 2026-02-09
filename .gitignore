@@ -7,3 +7,4 @@ data/daily_session_state.json
 data/rewards.json
 data/session_logs/
 session_logs/
+analysis/*.csv
