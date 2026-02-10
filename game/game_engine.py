@@ -138,17 +138,19 @@ class GameEngine:
         elif self.current_game_mode == GameMode.PING_PONG:
             self.state = GameState.PING_PONG
 
+    PLAYING_STATES = {GameState.PLAYING, GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG}
+
     def pause_game(self, reason: str = "PAUSED"):
         """Pause the game."""
-        if self.state == GameState.PLAYING:
+        if self.state in self.PLAYING_STATES:
             self.previous_state = self.state
             self.state = GameState.PAUSED
             self.pause_reason = reason
 
     def resume_game(self):
         """Resume from pause."""
-        if self.state == GameState.PAUSED:
-            self.state = GameState.PLAYING
+        if self.state == GameState.PAUSED and self.previous_state is not None:
+            self.state = self.previous_state
             self.last_spawn_time = pygame.time.get_ticks()
 
     def update(self, dt: float = 1.0) -> Dict:
@@ -186,11 +188,7 @@ class GameEngine:
             events['time_complete'] = True
             return events
 
-        # Check for hand visibility (auto-pause) - only in non-test mode
-        if self.hand_tracker.should_pause_game(HAND_MISSING_PAUSE_DELAY):
-            if self.state in [GameState.FINGER_INVADERS]:
-                self.pause_game("HANDS NOT DETECTED")
-            return events
+
 
         # Spawn missiles
         if current_time - self.last_spawn_time > self.spawn_interval:

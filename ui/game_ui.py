@@ -921,7 +921,7 @@ class MenuUI:
             color = YELLOW
 
         timer_surface = self.fonts['large'].render(timer_text, True, color)
-        timer_rect = timer_surface.get_rect(topright=(WINDOW_WIDTH - 20, 20))
+        timer_rect = timer_surface.get_rect(bottomright=(WINDOW_WIDTH - 20, WINDOW_HEIGHT - 10))
         self.surface.blit(timer_surface, timer_rect)
 
     def draw_reward_notification(self, new_rewards: List[str]):

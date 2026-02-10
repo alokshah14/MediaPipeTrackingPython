@@ -43,7 +43,7 @@ class CalibrationManager:
         # Baseline capture state
         self.baseline_samples = {name: [] for name in FINGER_NAMES}
         self.baseline_sample_count = 60  # More samples over time
-        self.baseline_duration = 10.0  # 10 seconds for baseline capture
+        self.baseline_duration = 5.0  # 5 seconds for baseline capture
         self.baseline_start_time = 0
         self.left_baseline_captured = False
         self.right_baseline_captured = False

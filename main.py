@@ -9,7 +9,7 @@ a specific finger, and players must press the correct finger to destroy it.
 
 import pygame
 import sys
-import signal
+
 import atexit
 import threading
 import os
@@ -19,8 +19,7 @@ from typing import Optional
 # Initialize pygame
 pygame.init()
 
-# Global flag for clean shutdown
-_shutdown_requested = False
+
 
 # Import game modules
 from game.constants import (
@@ -165,11 +164,10 @@ class FingerInvaders:
         # Hand position warning state
         self.hands_not_ready_message_time = 0
 
-        # Waiting for hands state
-        self.waiting_countdown = None  # Countdown before game starts (seconds)
-
-        # Device connection message
-        self.device_status_message = ""
+        # Resume countdown (hands must be in position for this many seconds before auto-resume)
+        self.resume_countdown = None  # None = not counting, float = seconds remaining
+        self.pause_start_tick = 0  # pygame tick when auto-pause started
+        self.total_paused_ms = 0  # accumulated pause time for current game session
 
         # Running state
         self.running = True
@@ -177,22 +175,7 @@ class FingerInvaders:
         # Initialize OpenGL for 2D overlay
         self._init_2d_opengl()
 
-        # If hardware is required but not detected, show connect screen
-        if not self.is_test_mode and not self.leap_controller.has_device and not self.leap_controller.has_recent_data(max_age=1.0):
-            self.game_engine.state = GameState.CONNECT_DEVICE
 
-    def _request_shutdown(self):
-        """Request a clean shutdown from anywhere."""
-        global _shutdown_requested
-        _shutdown_requested = True
-        self.running = False
-        # Failsafe: if cleanup hangs (e.g., driver/OpenGL), force-exit.
-        def _force_exit():
-            import time
-            time.sleep(2.0)
-            if _shutdown_requested:
-                os._exit(0)
-        threading.Thread(target=_force_exit, daemon=True).start()
 
     def _has_calibration_for_play(self) -> bool:
         """Return True if gameplay should be allowed without calibration."""
@@ -211,7 +194,7 @@ class FingerInvaders:
             self.screen_width = self.game_width
             self.screen_height = self.game_height
             pygame.display.set_mode(
-                (self.screen_width, self.screen_height),
+                (self.screen_width, self.game_height),
                 pygame.DOUBLEBUF | pygame.OPENGL
             )
 
@@ -246,8 +229,14 @@ class FingerInvaders:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         return texture_id, width, height
 
-    def _draw_2d_overlay_with_opengl(self):
-        """Renders the 2D Pygame surface as an OpenGL texture overlay."""
+    def _draw_2d_overlay_with_opengl(self, area: str = "game"):
+        """Renders the 2D Pygame surface as an OpenGL texture overlay.
+
+        area:
+            "game" -> draw only the game area (exclude hand area)
+            "hand" -> draw only the hand area (angle bars/labels overlay)
+            "full" -> draw entire surface
+        """
         # Disable depth test and lighting for 2D overlay
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
@@ -257,13 +246,19 @@ class FingerInvaders:
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        # Use scissor test to only draw in the game area (exclude hand area at bottom)
+        # Use scissor test to control which portion of the overlay is drawn.
         # OpenGL coords: y=0 at bottom. Scale scissor to actual screen size.
         scale_y = self.screen_height / self.game_height
         hand_area_height_scaled = int((self.game_height - GAME_AREA_BOTTOM) * scale_y)
         game_area_height_scaled = int(GAME_AREA_BOTTOM * scale_y)
-        glEnable(GL_SCISSOR_TEST)
-        glScissor(0, hand_area_height_scaled, self.screen_width, game_area_height_scaled)
+
+        if area != "full":
+            glEnable(GL_SCISSOR_TEST)
+            if area == "hand":
+                glScissor(0, 0, self.screen_width, hand_area_height_scaled)
+            else:
+                # Default to game area
+                glScissor(0, hand_area_height_scaled, self.screen_width, game_area_height_scaled)
 
         # Viewport covers full screen
         glViewport(0, 0, self.screen_width, self.screen_height)
@@ -294,7 +289,8 @@ class FingerInvaders:
 
         glDeleteTextures(1, [texture_id])
 
-        glDisable(GL_SCISSOR_TEST)
+        if area != "full":
+            glDisable(GL_SCISSOR_TEST)
 
         glPopMatrix()
         glMatrixMode(GL_PROJECTION)
@@ -305,27 +301,16 @@ class FingerInvaders:
 
     def run(self):
         """Main game loop."""
-        global _shutdown_requested
 
-        # Set up signal handler for clean shutdown on Mac
-        def signal_handler(signum, frame):
-            global _shutdown_requested
-            _shutdown_requested = True
-            self.running = False
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
 
         try:
-            while self.running and not _shutdown_requested:
+            while self.running:
                 dt = self.clock.tick(FPS) / 16.67  # Normalize to 60fps
 
                 # Handle events
                 self._handle_events()
 
-                # Check for shutdown after events
-                if not self.running or _shutdown_requested:
-                    break
+
 
                 # Update
                 self._update(dt)
@@ -344,8 +329,9 @@ class FingerInvaders:
                 # Draw 3D hands first (in the hand area viewport)
                 self.hand_renderer.draw()
 
-                # Then overlay the 2D Pygame surface on top (with transparency)
-                self._draw_2d_overlay_with_opengl()
+                # Overlay 2D Pygame surface for game area and then hand area
+                self._draw_2d_overlay_with_opengl("game")
+                self._draw_2d_overlay_with_opengl("hand")
 
                 pygame.display.flip()
         except Exception as e:
@@ -357,7 +343,7 @@ class FingerInvaders:
         """Handle pygame events."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self._request_shutdown()
+                self.running = False
 
             elif event.type == pygame.KEYDOWN:
                 self._handle_keydown(event)
@@ -372,7 +358,7 @@ class FingerInvaders:
         # Cmd+W / Cmd+Q to quit (macOS)
         mods = pygame.key.get_mods()
         if (mods & pygame.KMOD_META) and event.key in (pygame.K_w, pygame.K_q):
-            self._request_shutdown()
+            self.running = False
             return
 
         # Fullscreen toggle
@@ -388,24 +374,22 @@ class FingerInvaders:
 
         elif event.key == pygame.K_b:
             # Toggle angle bars during gameplay
-            if state == GameState.PLAYING:
+            if state in [GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG]:
                 enabled = self.old_hand_renderer.toggle_angle_bars()
                 print(f"Angle bars {'enabled' if enabled else 'disabled'}")
 
         elif event.key == pygame.K_ESCAPE:
-            if state == GameState.FINGER_INVADERS:
+            if state in [GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG]:
                 self._end_session()
+                self._clear_hand_warning_state()
                 self.game_engine.state = GameState.MENU
             elif state == GameState.PLAYING:
-                self.game_engine.pause_game()
+                self.game_engine.pause_game("PAUSED")
             elif state == GameState.CONNECT_DEVICE:
-                self._request_shutdown()
-            elif state in [GameState.EGG_CATCHER, GameState.PING_PONG]:
-                self._end_session()
-                self.game_engine.state = GameState.MENU
+                self.running = False
             elif state == GameState.PAUSED:
-                # End session when leaving game
                 self._end_session()
+                self._clear_hand_warning_state()
                 self.game_engine.state = GameState.MENU
             elif state == GameState.GAME_OVER:
                 self.game_engine.state = GameState.MENU
@@ -429,11 +413,9 @@ class FingerInvaders:
 
         elif event.key == pygame.K_SPACE:
             if state == GameState.PAUSED:
-                self.game_engine.resume_game()
-            elif state == GameState.GAME_OVER:
-                # End previous session and start new one
-                self._end_session()
-                self._start_game(self.game_engine.current_game_mode)
+                # Only resume if manually paused
+                if self.game_engine.pause_reason == "PAUSED":
+                    self.game_engine.resume_game()
             elif state == GameState.CALIBRATION_MENU:
                 self.calibration.start_calibration()
                 self.game_engine.state = GameState.CALIBRATING
@@ -448,12 +430,7 @@ class FingerInvaders:
                 self.new_rewards.clear()
                 self.game_engine.state = GameState.MENU
 
-        elif state == GameState.CONNECT_DEVICE and event.key in (pygame.K_RETURN, pygame.K_c):
-            if self.leap_controller.has_device or self.leap_controller.has_recent_data(max_age=1.0):
-                self.device_status_message = "Device detected. Continuing..."
-                self.game_engine.state = GameState.MENU
-            else:
-                self.device_status_message = "Still not detected. Check cable/service and try again."
+
 
         # Menu navigation
         elif state == GameState.MENU:
@@ -496,9 +473,11 @@ class FingerInvaders:
             self.ping_pong_game.start_game()
             self.game_engine.state = GameState.PING_PONG
         
-        # Reset session timer
+        # Reset session timer and pause tracking
         self.session_timer = 0
         self.session_start_time = pygame.time.get_ticks()
+        self.total_paused_ms = 0
+        self.pause_start_tick = 0
 
         # Start session logging
         self.session_logger.start_session(
@@ -510,9 +489,12 @@ class FingerInvaders:
 
     def _end_session(self, update_segment: bool = True):
         """Ends the current game session, logs data, updates high scores, and checks for rewards."""
-        # Calculate playtime duration
+        # Calculate playtime duration, excluding any in-progress pause
         session_duration_ms = pygame.time.get_ticks() - self.session_start_time
-        session_duration_seconds = session_duration_ms / 1000
+        if self.pause_start_tick > 0 and self.game_engine.state == GameState.PAUSED:
+            # Subtract ongoing pause time that hasn't been accounted for yet
+            session_duration_ms -= (pygame.time.get_ticks() - self.pause_start_tick)
+        session_duration_seconds = max(0, session_duration_ms / 1000)
 
         game_mode = self.game_engine.current_game_mode
 
@@ -596,7 +578,7 @@ class FingerInvaders:
             return
 
         if selected_option == "Quit":
-            self._request_shutdown()
+            self.running = False
             return
 
         if selected_option == "High Scores":
@@ -604,12 +586,7 @@ class FingerInvaders:
             return
 
         if isinstance(selected_option, GameMode):
-            if self.is_test_mode:
-                self._start_game(selected_option)
-            else:
-                self.game_engine.state = GameState.WAITING_FOR_HANDS
-                self.waiting_countdown = None
-                self.game_engine.pending_game_mode = selected_option
+            self._start_game(selected_option)
 
 
 
@@ -675,10 +652,97 @@ class FingerInvaders:
 
         return False
 
+    def _clear_hand_warning_state(self):
+        """Clear hand warning and resume countdown when leaving gameplay."""
+        self.hands_not_ready_message_time = 0
+        self.resume_countdown = None
+        self.pause_start_tick = 0
+
+    def _adjust_game_clocks(self, pause_duration_ms: int):
+        """Shift game session_start_time forward so paused time is excluded from elapsed_time."""
+        # Adjust main session start time
+        self.session_start_time += pause_duration_ms
+        # Adjust whichever game is active
+        game_mode = self.game_engine.current_game_mode
+        if game_mode == GameMode.FINGER_INVADERS:
+            self.game_engine.session_start_time += pause_duration_ms
+        elif game_mode == GameMode.EGG_CATCHER:
+            self.egg_catcher_game.session_start_time += pause_duration_ms
+        elif game_mode == GameMode.PING_PONG:
+            self.ping_pong_game.session_start_time += pause_duration_ms
+
+    def _check_and_handle_auto_pause(self, dt: float):
+        """
+        Handles automatic pausing/resuming based on hand visibility and calibrated position.
+        This is called once per frame in the main update loop.
+        """
+        # Skip auto-pause logic in test mode or if not in a game state
+        if self.is_test_mode or \
+           self.game_engine.state not in [
+               GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG, GameState.PAUSED
+           ]:
+            return
+
+        # Update hand tracker (safe to call multiple times per frame —
+        # HandTracker.update() deduplicates within the same frame).
+        self.hand_tracker.update()
+        hand_data = self.hand_tracker.latest_hand_data
+
+        current_game_state = self.game_engine.state
+        is_currently_playing = current_game_state in [
+            GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG
+        ]
+        is_paused_by_hands = current_game_state == GameState.PAUSED and \
+                             self.game_engine.pause_reason == "HANDS NOT DETECTED"
+
+        # Check hand visibility and position
+        hands_visible = self.hand_tracker.are_hands_visible()
+        position_status = self.calibration.check_hand_positions(hand_data)
+        hands_in_calibrated_position = position_status['both_in_position']
+
+        if not hands_visible or not hands_in_calibrated_position:
+            # Hands are not visible or not in the calibrated position
+            if is_currently_playing:
+                self.game_engine.pause_game("HANDS NOT DETECTED")
+                self.pause_start_tick = pygame.time.get_ticks()
+            # Reset resume countdown whenever hands leave position
+            self.resume_countdown = None
+        elif hands_visible and hands_in_calibrated_position:
+            if is_paused_by_hands:
+                # Start or continue the resume countdown
+                if self.resume_countdown is None:
+                    self.resume_countdown = 3.0  # 3 seconds in position before resuming
+                else:
+                    self.resume_countdown -= dt / FPS  # dt is normalized to 60fps
+                    if self.resume_countdown <= 0:
+                        # Shift game clocks forward so paused time is excluded
+                        pause_duration = pygame.time.get_ticks() - self.pause_start_tick
+                        self.total_paused_ms += pause_duration
+                        self._adjust_game_clocks(pause_duration)
+
+                        self.game_engine.resume_game()
+                        self.resume_countdown = None
+
+
     def _update(self, dt: float):
         """Update game state."""
         state = self.game_engine.state
         dt_ms = int(dt * (1000 / FPS)) # Convert dt (normalized to 60fps) to milliseconds
+
+        # Handle auto-pause/resume based on hand tracking FIRST
+        self._check_and_handle_auto_pause(dt)
+        if self.game_engine.state == GameState.PAUSED and self.game_engine.pause_reason == "HANDS NOT DETECTED":
+            # If auto-paused, skip further game logic updates
+            # Only update UI elements that depend on dt outside of game logic
+            self.game_ui.update(dt)
+            self.menu_ui.update(dt)
+            self.hand_renderer.update(dt)
+            self.old_hand_renderer.update(dt)
+            # Decay hands not ready message timer
+            if self.hands_not_ready_message_time > 0:
+                self.hands_not_ready_message_time -= dt * 0.05
+            return
+
 
         if self.daily_session_manager.state.current_segment != 0:
             time_left_ms = max(0, SESSION_SEGMENT_DURATION - self.daily_session_manager.state.segment_playtime_ms)
@@ -694,7 +758,7 @@ class FingerInvaders:
             current_score = self.game_engine.get_game_state()['score']
 
             # Get current hand data for logging
-            hand_data = self.leap_controller.update()
+            hand_data = self.hand_tracker.latest_hand_data # Hand data is already updated by _check_and_handle_auto_pause
             game_state = self.game_engine.get_game_state()
 
             # Log finger press events with biomechanical metrics and play sounds
@@ -785,7 +849,7 @@ class FingerInvaders:
             current_score = self.egg_catcher_game.get_game_state()['score']
 
             # Get hand data for logging
-            hand_data = self.leap_controller.update()
+            hand_data = self.hand_tracker.latest_hand_data # Hand data is already updated by _check_and_handle_auto_pause
             game_state = self.egg_catcher_game.get_game_state()
 
             # Log finger press events with biomechanical metrics
@@ -858,7 +922,7 @@ class FingerInvaders:
             current_score = self.ping_pong_game.get_game_state()['score']
 
             # Get hand data for logging
-            hand_data = self.leap_controller.update()
+            hand_data = self.hand_tracker.latest_hand_data # Hand data is already updated by _check_and_handle_auto_pause
             game_state = self.ping_pong_game.get_game_state()
 
             # Log finger press events with biomechanical metrics
@@ -929,44 +993,16 @@ class FingerInvaders:
         elif state == GameState.CALIBRATING:
             self._update_calibration(dt)
 
-        elif state == GameState.PAUSED:
-            # Check if hands returned
-            self.hand_tracker.update()
-            if self.hand_tracker.are_hands_visible():
-                if self.game_engine.pause_reason == "HANDS NOT DETECTED":
-                    self.game_engine.resume_game()
 
-        elif state == GameState.WAITING_FOR_HANDS:
-            # Check if hands are in calibrated position
-            hand_data = self.leap_controller.update()
-            position_status = self.calibration.check_hand_positions(hand_data)
 
-            if position_status['both_in_position']:
-                # Hands are in position - start or continue countdown
-                if self.waiting_countdown is None:
-                    self.waiting_countdown = 3.0  # 3 second countdown
-                else:
-                    self.waiting_countdown -= dt * 0.0167  # Roughly 1 second per 60 frames
-                    if self.waiting_countdown <= 0:
-                        # Start the game!
-                        self._start_game(self.game_engine.pending_game_mode)
-                        self.waiting_countdown = None
-            else:
-                # Hands not in position - reset countdown
-                self.waiting_countdown = None
+
 
         elif state == GameState.NEW_HIGH_SCORE:
             # Update celebration animation
             self.celebration_animation += dt * 0.1
         
         elif state == GameState.REWARD_DISPLAY:
-            pass # No updates needed, just waiting for user input
-
-        elif state == GameState.PAUSED:
-            self._update_paused(dt)
-
-        elif state == GameState.WAITING_FOR_HANDS:
-            self._update_waiting_for_hands(dt)
+            pass
 
         # Update UI animations
         self.game_ui.update(dt)
@@ -990,7 +1026,7 @@ class FingerInvaders:
         current_finger = self.calibration.get_current_finger()
 
         # Get hand data and all finger angles
-        hand_data = self.leap_controller.update()
+        hand_data = self.hand_tracker.latest_hand_data
         finger_angles = self.hand_tracker.get_all_finger_angles()
 
         # Update calibration with current data
@@ -1122,33 +1158,7 @@ class FingerInvaders:
             self.game_engine.state = GameState.GAME_OVER
             self._end_session()
 
-    def _update_paused(self, dt: float):
-        """Update logic for the PAUSED state."""
-        # Check if hands returned
-        self.hand_tracker.update()
-        if self.hand_tracker.are_hands_visible():
-            if self.game_engine.pause_reason == "HANDS NOT DETECTED":
-                self.game_engine.resume_game()
-
-    def _update_waiting_for_hands(self, dt: float):
-        """Update logic for the WAITING_FOR_HANDS state."""
-        hand_data = self.leap_controller.update()
-        position_status = self.calibration.check_hand_positions(hand_data)
-
-        if position_status['both_in_position']:
-            # Hands are in position - start or continue countdown
-            if self.waiting_countdown is None:
-                self.waiting_countdown = 3.0  # 3 second countdown
-            else:
-                self.waiting_countdown -= dt * 0.0167  # Roughly 1 second per 60 frames
-                if self.waiting_countdown <= 0:
-                    # Start the game!
-                    self._start_game(self.game_engine.pending_game_mode)
-                    self.waiting_countdown = None
-        else:
-            # Hands not in position - reset countdown
-            self.waiting_countdown = None
-
+    
 
     def _render(self):
         """Render the current game state."""
@@ -1179,26 +1189,23 @@ class FingerInvaders:
 
             # Show hand position overlay if calibration exists
             if self.calibration.has_calibration() and not self.is_test_mode:
-                hand_data = self.leap_controller.update()
+                hand_data = self.hand_tracker.latest_hand_data # Use hand_tracker's latest data
                 position_status = self.calibration.check_hand_positions(hand_data)
                 calibrated_positions = self.calibration.get_calibrated_palm_positions()
                 if calibrated_positions.get('left') or calibrated_positions.get('right'):
                     self.menu_ui.draw_hand_position_overlay(position_status, calibrated_positions)
 
             # Show warning if hands not in position when trying to start
-            if self.hands_not_ready_message_time > 0:
+            if self.hands_not_ready_message_time > 0 and \
+               (not self.hand_tracker.are_hands_visible() or \
+                not self.calibration.check_hand_positions(self.hand_tracker.latest_hand_data)['both_in_position']): # Add position check here
                 self._draw_hands_not_ready_warning()
 
         elif state == GameState.CALIBRATION_MENU:
             self.menu_ui.draw_calibration_menu(self.calibration.has_calibration())
-        elif state == GameState.CONNECT_DEVICE:
-            self.menu_ui.draw_connect_device(self.device_status_message)
 
         elif state == GameState.CALIBRATING:
             self._render_calibration()
-
-        elif state == GameState.WAITING_FOR_HANDS:
-            self._render_waiting_for_hands()
 
         elif state == GameState.FINGER_INVADERS:
             self._render_finger_invaders()
@@ -1365,6 +1372,26 @@ class FingerInvaders:
             self._render_ping_pong()
         self.game_ui.draw_pause_overlay(self.game_engine.pause_reason)
 
+        # Show hand position overlay when auto-paused so user can reposition
+        if self.game_engine.pause_reason == "HANDS NOT DETECTED":
+            hand_data = self.hand_tracker.latest_hand_data
+            position_status = self.calibration.check_hand_positions(hand_data)
+            calibrated_positions = self.calibration.get_calibrated_palm_positions()
+            if calibrated_positions.get('left') or calibrated_positions.get('right'):
+                self.menu_ui.draw_hand_position_overlay(position_status, calibrated_positions, large=True)
+
+            # Show resume countdown if hands are in position
+            if self.resume_countdown is not None:
+                font = pygame.font.Font(None, 100)
+                countdown_num = max(1, int(self.resume_countdown) + 1)
+                countdown_text = font.render(str(countdown_num), True, (100, 255, 100))
+                self.pygame_2d_surface.blit(countdown_text,
+                    (WINDOW_WIDTH // 2 - countdown_text.get_width() // 2, 400))
+                ready_font = pygame.font.Font(None, 36)
+                ready_text = ready_font.render("Resuming...", True, (100, 255, 100))
+                self.pygame_2d_surface.blit(ready_text,
+                    (WINDOW_WIDTH // 2 - ready_text.get_width() // 2, 480))
+
     def _render_game_over(self):
         """Render the GAME_OVER state."""
         current_game_mode = self.game_engine.current_game_mode
@@ -1434,42 +1461,30 @@ class FingerInvaders:
         self.pygame_2d_surface.blit(inst2, (WINDOW_WIDTH // 2 - inst2.get_width() // 2, 195))
 
         # Get current hand positions and draw status
-        hand_data = self.leap_controller.update()
+        hand_data = self.hand_tracker.latest_hand_data # Use hand_tracker's latest data
         position_status = self.calibration.check_hand_positions(hand_data)
         calibrated_positions = self.calibration.get_calibrated_palm_positions()
 
         # Draw hand position indicators
         self.menu_ui.draw_hand_position_overlay(position_status, calibrated_positions, large=True)
 
-        # Show countdown if hands are in position
-        if self.waiting_countdown is not None:
-            font_countdown = pygame.font.Font(None, 120)
-            countdown_num = max(1, int(self.waiting_countdown) + 1)
-            countdown_text = font_countdown.render(str(countdown_num), True, (100, 255, 100))
-            self.pygame_2d_surface.blit(countdown_text,
-                (WINDOW_WIDTH // 2 - countdown_text.get_width() // 2, 350))
-
-            ready_text = font_inst.render("GET READY!", True, (100, 255, 100))
-            self.pygame_2d_surface.blit(ready_text,
-                (WINDOW_WIDTH // 2 - ready_text.get_width() // 2, 480))
+        # Show waiting status
+        if position_status.get('left_in_position') and position_status.get('right_in_position'):
+            status_text = "Both hands in position!"
+            status_color = (100, 255, 100)
+        elif position_status.get('left_in_position'):
+            status_text = "Left hand OK - Position right hand"
+            status_color = (255, 255, 100)
+        elif position_status.get('right_in_position'):
+            status_text = "Right hand OK - Position left hand"
+            status_color = (255, 255, 100)
         else:
-            # Show waiting status
-            if position_status.get('left_in_position') and position_status.get('right_in_position'):
-                status_text = "Both hands in position!"
-                status_color = (100, 255, 100)
-            elif position_status.get('left_in_position'):
-                status_text = "Left hand OK - Position right hand"
-                status_color = (255, 255, 100)
-            elif position_status.get('right_in_position'):
-                status_text = "Right hand OK - Position left hand"
-                status_color = (255, 255, 100)
-            else:
-                status_text = "Position both hands..."
-                status_color = (255, 150, 150)
+            status_text = "Position both hands..."
+            status_color = (255, 150, 150)
 
-            status_render = font_inst.render(status_text, True, status_color)
-            self.pygame_2d_surface.blit(status_render,
-                (WINDOW_WIDTH // 2 - status_render.get_width() // 2, 400))
+        status_render = font_inst.render(status_text, True, status_color)
+        self.pygame_2d_surface.blit(status_render,
+            (WINDOW_WIDTH // 2 - status_render.get_width() // 2, 400))
 
         # ESC to cancel
         font_small = pygame.font.Font(None, 24)
@@ -1541,7 +1556,7 @@ class FingerInvaders:
     def _draw_hand_position_overlay_on_menu(self):
         """Draws the hand position overlay on the menu if calibration exists."""
         if self.calibration.has_calibration():
-            hand_data = self.leap_controller.update()
+            hand_data = self.hand_tracker.latest_hand_data
             position_status = self.calibration.check_hand_positions(hand_data)
             calibrated_positions = self.calibration.get_calibrated_palm_positions()
             if calibrated_positions.get('left') or calibrated_positions.get('right'):

@@ -76,18 +76,30 @@ class HandTracker:
 
         # Tracking state
         self.hands_missing_since = None
+        self.latest_hand_data: Dict = {'left': None, 'right': None} # Store the most recent hand data
+        self._last_update_time = 0  # For per-frame dedup
 
     def update(self) -> List[str]:
         """
         Update hand tracking and return list of new finger press events.
+
+        Safe to call multiple times per frame — only the first call within
+        a 2ms window does real work; subsequent calls return cached presses.
 
         Returns:
             List of finger names that were just pressed
         """
         current_time = time.time() * 1000  # Convert to ms
 
+        # If already updated this frame, return cached press events
+        if current_time - self._last_update_time < 2.0:
+            return self.press_events
+
+        self._last_update_time = current_time
+
         # Get latest hand data from Leap
         hands_data = self.leap.update()
+        self.latest_hand_data = hands_data # Store the latest hand data
 
         # Update hand visibility
         self._update_hand_visibility(hands_data)

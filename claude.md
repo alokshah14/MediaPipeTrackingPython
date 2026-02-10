@@ -786,3 +786,41 @@ analyzer.animate_session(save_path='session_replay.gif')
 **Implementation**:
 - **`ui/game_ui.py`**: Added `draw_session_resume_banner()` to render remaining time and current segment message.
 - **`main.py`**: Calls the banner in menu render when a segment has progress.
+
+### 2026-02-10
+
+#### Auto-Pause/Resume System Overhaul
+**User Report**: Multiple issues with game state management — black screen on game start, bounce not working in Ping Pong, games not pausing when hands removed, timer counting during pause.
+
+**Root Causes & Fixes**:
+
+1. **Black screen on game start** (`main.py`):
+   - Menu selection set state to `WAITING_FOR_HANDS` but all update/render handlers for that state had been removed during refactoring
+   - Fix: Start games directly via `_start_game()` in all cases; `_check_and_handle_auto_pause` handles hand detection during gameplay
+
+2. **Ping Pong bounce not working** (`tracking/hand_tracker.py`):
+   - `_check_and_handle_auto_pause` called `hand_tracker.update()` first, consuming finger press state transitions. Games calling `hand_tracker.update()` again got empty press lists.
+   - Fix: Added per-frame deduplication to `HandTracker.update()` — second call within 2ms returns cached press events instead of re-processing
+
+3. **Games not pausing when hands removed** (`game/game_engine.py`):
+   - `pause_game()` only accepted `GameState.PLAYING`, but active games use `FINGER_INVADERS`/`EGG_CATCHER`/`PING_PONG` states
+   - `resume_game()` always restored to `PLAYING` instead of the actual previous state
+   - Fix: `pause_game()` accepts all playing states via `PLAYING_STATES` set; `resume_game()` restores `previous_state`
+
+4. **Hand position overlay during auto-pause** (`main.py`):
+   - When paused due to hands not detected, now shows large hand position overlay with distance-from-calibration indicators
+   - 3-second countdown before auto-resume (resets if hands leave position)
+   - Stale "hands not in position" warning cleared when returning to menu via ESC
+
+5. **Game timer counting during pause** (`main.py`):
+   - All three games compute `elapsed_time = (current_time - session_start_time)` which included paused time
+   - Fix: `_adjust_game_clocks()` shifts `session_start_time` forward by pause duration on resume
+   - `_end_session()` subtracts any in-progress pause time from session duration
+   - `total_paused_ms` tracks accumulated pause time per session
+
+**Files Changed**:
+- **`main.py`**: Auto-pause system, resume countdown, game clock adjustment, direct game start, warning state cleanup
+- **`game/game_engine.py`**: `pause_game()`/`resume_game()` accept per-game states, `PLAYING_STATES` set
+- **`tracking/hand_tracker.py`**: Per-frame dedup in `update()`, `latest_hand_data` caching
+- **`tracking/calibration.py`**: Baseline capture duration reduced from 10s to 5s
+- **`ui/game_ui.py`**: Session timer moved from top-right to bottom-right of screen
