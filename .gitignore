@@ -8,3 +8,5 @@ data/rewards.json
 data/session_logs/
 session_logs/
 analysis/*.csv
+data/calibration_data.json
+calibration_data.json
