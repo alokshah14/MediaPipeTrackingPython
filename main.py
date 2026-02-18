@@ -564,7 +564,11 @@ class FingerInvaders:
 
         # Update the daily session manager with actual session duration
         if update_segment and self.daily_session_manager.state.current_segment != 0:
-            self.daily_session_manager.update_segment_playtime(game_mode, session_duration_ms, score)
+            # Avoid double-counting if playtime was already tracked per-frame
+            tracked_ms = self.daily_session_manager.state.segment_playtime_ms
+            delta_ms = max(0, session_duration_ms - tracked_ms)
+            if delta_ms > 0:
+                self.daily_session_manager.update_segment_playtime(game_mode, delta_ms, score)
 
         # Update total playtime for rewards
         unlocked_rewards = self.reward_manager.add_playtime(session_duration_seconds)

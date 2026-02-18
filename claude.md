@@ -863,3 +863,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 2. **main.py**:
    - Calibration render now uses only the 3D hand renderer (removed 2D hand overlay).
+
+### 2026-02-18 (cont.)
+
+#### Menu Segment Timer Fix
+**User Request**: Menu segment timer was wrong.
+
+**Fix**:
+- **main.py**: Prevent double-counting segment playtime by only adding the untracked delta on session end.
