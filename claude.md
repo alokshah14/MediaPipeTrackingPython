@@ -1028,3 +1028,13 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **ui/hand_renderer_3d.py**: Support bone data whether it comes from `finger_data['bones']` or direct `finger_data['metacarpal'|'proximal'|'intermediate'|'distal']` (display data path).
+
+### 2026-02-18 (cont.)
+
+#### Bold Single-Mode Angle Overlay
+**User Request**: Use one bold color at a time for angle overlays (hard to see otherwise).
+
+**Changes**:
+- **ui/hand_renderer_3d.py**: Show only the current mode (PIP or MCP) with thicker lines/points and a single bold color.
+- **main.py**: Angle debug overlay uses the current mode.
+- **ui/game_ui.py**: Legend updated to match single-mode overlay behavior.

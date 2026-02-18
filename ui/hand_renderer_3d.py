@@ -61,6 +61,7 @@ class OpenGLHandRenderer:
         self.angle_debug_finger = None
         self.show_angle_pip = False
         self.show_angle_mcp = False
+        self.angle_debug_mode = "pip"
 
     def _init_opengl(self):
         """Initialize OpenGL settings for 3D rendering."""
@@ -92,11 +93,12 @@ class OpenGLHandRenderer:
         if highlighted_fingers is not None:
             self.highlighted_fingers = highlighted_fingers
 
-    def set_angle_debug(self, finger_name: Optional[str], show_pip: bool = True, show_mcp: bool = True):
+    def set_angle_debug(self, finger_name: Optional[str], show_pip: bool = True, show_mcp: bool = True, mode: str = "pip"):
         """Enable angle debug overlay for a specific finger."""
         self.angle_debug_finger = finger_name
         self.show_angle_pip = show_pip
         self.show_angle_mcp = show_mcp
+        self.angle_debug_mode = mode
 
     def draw(self):
         """Draw the 3D hand visualization."""
@@ -354,26 +356,26 @@ class OpenGLHandRenderer:
         intermediate = bones.get('intermediate')
 
         # MCP: metacarpal + proximal
-        if self.show_angle_mcp and metacarpal and proximal:
+        if self.show_angle_mcp and self.angle_debug_mode == "mcp" and metacarpal and proximal:
             m_start = to_rel(metacarpal['start'])
             m_end = to_rel(metacarpal['end'])
             p_start = to_rel(proximal['start'])
             p_end = to_rel(proximal['end'])
-            draw_segment(m_start, m_end, (0.2, 0.6, 1.0), width=3.0)
-            draw_segment(p_start, p_end, (0.2, 1.0, 0.6), width=3.0)
-            draw_point(m_end, (0.2, 0.6, 1.0))
-            draw_point(p_start, (0.2, 1.0, 0.6))
+            draw_segment(m_start, m_end, (0.2, 0.9, 1.0), width=7.0)
+            draw_segment(p_start, p_end, (0.2, 0.9, 1.0), width=7.0)
+            draw_point(m_end, (0.2, 0.9, 1.0), radius=7.0)
+            draw_point(p_start, (0.2, 0.9, 1.0), radius=7.0)
 
         # PIP: proximal + intermediate
-        if self.show_angle_pip and proximal and intermediate:
+        if self.show_angle_pip and self.angle_debug_mode == "pip" and proximal and intermediate:
             p_start = to_rel(proximal['start'])
             p_end = to_rel(proximal['end'])
             i_start = to_rel(intermediate['start'])
             i_end = to_rel(intermediate['end'])
-            draw_segment(p_start, p_end, (1.0, 0.2, 0.8), width=2.8)
-            draw_segment(i_start, i_end, (1.0, 0.6, 0.2), width=2.8)
-            draw_point(p_end, (1.0, 0.2, 0.8))
-            draw_point(i_start, (1.0, 0.6, 0.2))
+            draw_segment(p_start, p_end, (1.0, 0.4, 0.1), width=7.0)
+            draw_segment(i_start, i_end, (1.0, 0.4, 0.1), width=7.0)
+            draw_point(p_end, (1.0, 0.4, 0.1), radius=7.0)
+            draw_point(i_start, (1.0, 0.4, 0.1), radius=7.0)
 
     def update(self, dt: float):
         """Update animations."""

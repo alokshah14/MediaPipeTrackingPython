@@ -1619,7 +1619,12 @@ class FingerInvaders:
         # Update 3D hand debug overlay
         hand_data = self.hand_tracker.get_display_data()
         self.hand_renderer.set_hand_data(hand_data, finger_states)
-        self.hand_renderer.set_angle_debug(selected_finger, show_pip=True, show_mcp=True)
+        self.hand_renderer.set_angle_debug(
+            selected_finger,
+            show_pip=True,
+            show_mcp=True,
+            mode=self.hand_tracker.get_angle_calculation_mode()
+        )
 
     def _render_waiting_for_hands(self):
         """Render the waiting for hands screen."""

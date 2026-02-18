@@ -718,7 +718,7 @@ class MenuUI:
 
         # Legend for 3D angle overlays
         legend_y = 230
-        legend = "3D overlay: MCP (blue/green) | PIP (pink/orange)"
+        legend = "3D overlay: shows current angle mode (bold lines on selected finger)"
         self.surface.blit(self.fonts['small'].render(legend, True, (160, 200, 220)), (80, legend_y))
 
         # Table headers
