@@ -748,10 +748,13 @@ class MenuUI:
         self.surface.blit(footer_text, footer_rect)
 
     def move_selection(self, direction: int, daily_session_locked: bool, has_calibration: bool,
-                       current_segment_info: Dict, playable_games: List[GameMode]):
+                       current_segment_info: Dict, playable_games: List[GameMode],
+                       include_angle_test: bool = True):
         """Move menu selection, adjusting for dynamic options based on daily session state."""
         
-        menu_options = ["Calibrate", "Angle Test"]
+        menu_options = ["Calibrate"]
+        if include_angle_test:
+            menu_options.append("Angle Test")
         if not daily_session_locked:
             if current_segment_info["segment_number"] == 5:
                 # All games available for segment 5
@@ -773,6 +776,8 @@ class MenuUI:
             can_select = True
             if "Calibrate" in str(selected_option_value): # Calibrate option
                 can_select = True
+            elif "Angle Test" in str(selected_option_value):
+                can_select = include_angle_test
             elif "Quit" in str(selected_option_value): # Quit option
                 can_select = True
             elif "High Scores" in str(selected_option_value): # High Scores option

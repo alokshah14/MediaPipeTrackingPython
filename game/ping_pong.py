@@ -349,6 +349,14 @@ class PingPong:
         zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, zone_top + 15))
         surface.blit(zone_label, zone_rect)
 
+        # Show target finger prominently
+        if self.target_finger:
+            target_font = pygame.font.Font(None, 48)
+            target_display = self.target_finger.replace('_', ' ').upper()
+            target_text = target_font.render(f"PRESS {target_display}", True, (255, 230, 120))
+            target_rect = target_text.get_rect(center=(WINDOW_WIDTH // 2, GAME_AREA_TOP + 40))
+            surface.blit(target_text, target_rect)
+
         # Highlight current lane if ball in zone
         if self.ball_in_zone:
             lane = self.ball.get_lane()

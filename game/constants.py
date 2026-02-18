@@ -87,6 +87,7 @@ PRESS_DEBOUNCE_TIME = 200  # ms between registered presses
 MULTI_PRESS_WINDOW_MS = 120  # ms window to treat two presses as simultaneous
 PING_PONG_MULTI_PRESS_WINDOW_MS = 60
 EGG_CATCHER_MULTI_PRESS_WINDOW_MS = 100
+FINGER_INVADERS_MULTI_PRESS_WINDOW_MS = 40
 
 # Multi-press warning UI
 MULTI_PRESS_WARNING_DURATION_MS = 600

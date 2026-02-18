@@ -471,13 +471,19 @@ class FingerInvaders:
 
         # Menu navigation
         elif state == GameState.MENU:
-            current_segment_info = self.daily_session_manager.get_current_segment_info()
-            playable_games = self.daily_session_manager.get_current_playable_games()
-            daily_locked = self.daily_session_manager.is_day_locked()
+            if self.is_test_mode:
+                current_segment_info = {"segment_number": 5, "current_game": None, "message": "Simulation mode: Free play"}
+                playable_games = ALL_GAME_MODES
+                daily_locked = False
+            else:
+                current_segment_info = self.daily_session_manager.get_current_segment_info()
+                playable_games = self.daily_session_manager.get_current_playable_games()
+                daily_locked = self.daily_session_manager.is_day_locked()
+            include_angle_test = self.is_test_mode
             if event.key == pygame.K_UP:
-                self.menu_ui.move_selection(-1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games)
+                self.menu_ui.move_selection(-1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games, include_angle_test)
             elif event.key == pygame.K_DOWN:
-                self.menu_ui.move_selection(1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games)
+                self.menu_ui.move_selection(1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games, include_angle_test)
             elif event.key == pygame.K_RETURN:
                 self._handle_menu_selection()
 
@@ -513,12 +519,15 @@ class FingerInvaders:
         from game.constants import (
             MULTI_PRESS_WINDOW_MS,
             PING_PONG_MULTI_PRESS_WINDOW_MS,
-            EGG_CATCHER_MULTI_PRESS_WINDOW_MS
+            EGG_CATCHER_MULTI_PRESS_WINDOW_MS,
+            FINGER_INVADERS_MULTI_PRESS_WINDOW_MS
         )
         if game_mode == GameMode.PING_PONG:
             self.hand_tracker.set_multi_press_window_ms(PING_PONG_MULTI_PRESS_WINDOW_MS)
         elif game_mode == GameMode.EGG_CATCHER:
             self.hand_tracker.set_multi_press_window_ms(EGG_CATCHER_MULTI_PRESS_WINDOW_MS)
+        elif game_mode == GameMode.FINGER_INVADERS:
+            self.hand_tracker.set_multi_press_window_ms(FINGER_INVADERS_MULTI_PRESS_WINDOW_MS)
         else:
             self.hand_tracker.set_multi_press_window_ms(MULTI_PRESS_WINDOW_MS)
 
@@ -600,7 +609,14 @@ class FingerInvaders:
 
     def _get_menu_options(self):
         """Build the current main menu options list (strings and GameMode entries)."""
-        menu_options = ["Calibrate", "Angle Test"]
+        menu_options = ["Calibrate"]
+
+        if self.is_test_mode:
+            menu_options.append("Angle Test")
+            menu_options.extend(ALL_GAME_MODES)
+            menu_options.append("High Scores")
+            menu_options.append("Quit")
+            return menu_options
 
         if not self.daily_session_manager.is_day_locked():
             current_segment_info = self.daily_session_manager.get_current_segment_info()
@@ -855,7 +871,10 @@ class FingerInvaders:
 
                     # Show clean trial indicator if applicable
                     if trial_metrics.is_clean_trial:
-                        self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+                        mlr_display = trial_metrics.motion_leakage_ratio
+                        if not (0.0 < mlr_display < float('inf')):
+                            mlr_display = trial_metrics.angle_based_mlr
+                        self.old_hand_renderer.show_clean_trial(mlr_display)
 
                     # Record trial for clean summary export
                     self.trial_summary.record_trial(
@@ -946,7 +965,10 @@ class FingerInvaders:
                     )
 
                     if trial_metrics.is_clean_trial:
-                        self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+                        mlr_display = trial_metrics.motion_leakage_ratio
+                        if not (0.0 < mlr_display < float('inf')):
+                            mlr_display = trial_metrics.angle_based_mlr
+                        self.old_hand_renderer.show_clean_trial(mlr_display)
 
                     self.trial_summary.record_trial(
                         target_finger=press_event['target'],
@@ -1020,7 +1042,10 @@ class FingerInvaders:
                     )
 
                     if trial_metrics.is_clean_trial:
-                        self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+                        mlr_display = trial_metrics.motion_leakage_ratio
+                        if not (0.0 < mlr_display < float('inf')):
+                            mlr_display = trial_metrics.angle_based_mlr
+                        self.old_hand_renderer.show_clean_trial(mlr_display)
 
                     self.trial_summary.record_trial(
                         target_finger=press_event['target'],
@@ -1160,7 +1185,10 @@ class FingerInvaders:
 
                 # Show clean trial indicator if applicable
                 if trial_metrics.is_clean_trial:
-                    self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+                    mlr_display = trial_metrics.motion_leakage_ratio
+                    if not (0.0 < mlr_display < float('inf')):
+                        mlr_display = trial_metrics.angle_based_mlr
+                    self.old_hand_renderer.show_clean_trial(mlr_display)
 
                 # Record trial for clean summary export
                 self.trial_summary.record_trial(
@@ -1252,13 +1280,17 @@ class FingerInvaders:
         state = self.game_engine.state
 
         if state == GameState.MENU:
-            current_segment_info = self.daily_session_manager.get_current_segment_info()
-            daily_locked = self.daily_session_manager.is_day_locked()
+            if self.is_test_mode:
+                current_segment_info = {"segment_number": 5, "current_game": None, "message": "Simulation mode: Free play"}
+                daily_locked = False
+            else:
+                current_segment_info = self.daily_session_manager.get_current_segment_info()
+                daily_locked = self.daily_session_manager.is_day_locked()
 
             menu_options = self._get_menu_options()
             menu_options_text = self._format_menu_options(menu_options)
-            menu_message = current_segment_info["message"]
-            current_game_to_highlight = current_segment_info["current_game"]
+            menu_message = current_segment_info.get("message", "")
+            current_game_to_highlight = current_segment_info.get("current_game")
 
             self.menu_ui.draw_main_menu(
                 self._has_calibration_for_play(),
@@ -1269,10 +1301,11 @@ class FingerInvaders:
             )
 
             # Session resume banner (only if a segment is in progress)
-            self.menu_ui.draw_session_resume_banner(
-                current_segment_info,
-                self.daily_session_manager.state.segment_playtime_ms
-            )
+            if not self.is_test_mode:
+                self.menu_ui.draw_session_resume_banner(
+                    current_segment_info,
+                    self.daily_session_manager.state.segment_playtime_ms
+                )
 
             # Show hand position overlay if calibration exists
             if self.calibration.has_calibration() and not self.is_test_mode:
@@ -1621,8 +1654,11 @@ class FingerInvaders:
             )
 
             # Show clean trial indicator if applicable
-            if trial_metrics.is_clean_trial:
-                self.old_hand_renderer.show_clean_trial(trial_metrics.motion_leakage_ratio)
+                if trial_metrics.is_clean_trial:
+                    mlr_display = trial_metrics.motion_leakage_ratio
+                    if not (0.0 < mlr_display < float('inf')):
+                        mlr_display = trial_metrics.angle_based_mlr
+                    self.old_hand_renderer.show_clean_trial(mlr_display)
 
             # Record trial for clean summary export
             self.trial_summary.record_trial(

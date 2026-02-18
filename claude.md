@@ -946,3 +946,15 @@ analyzer.animate_session(save_path='session_replay.gif')
 **Changes**:
 - **game/ping_pong.py**: Zone scaling now uses rally count as an extra driver with stronger shrink/lift so changes are visible.
 - **main.py**: Menu now refreshes hand data before checking positions; clearing warnings also clears cached hand data.
+
+### 2026-02-18 (cont.)
+
+#### Simulation-Only Angle Test + Input/Feedback Tweaks
+**User Request**: Make Finger Invaders presses more immediate; hide Angle Test in normal mode; improve Ping Pong target clarity; address MLR always showing 0%.
+
+**Changes**:
+- **game/constants.py** / **main.py**: Added per-game multi-press windows; Finger Invaders now uses 40ms for less input latency.
+- **main.py**: Angle Test only appears in simulation; menu selection honors that.
+- **ui/game_ui.py**: Menu selection handles optional Angle Test entry.
+- **game/ping_pong.py**: Added large "PRESS <FINGER>" prompt for clearer target.
+- **main.py**: Clean-trial display now uses angle-based MLR when position MLR is zero/inf.
