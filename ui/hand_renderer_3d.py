@@ -341,7 +341,14 @@ class OpenGLHandRenderer:
             glEnable(GL_DEPTH_TEST)
             glEnable(GL_LIGHTING)
 
-        bones = finger_data.get('bones', {})
+        bones = finger_data.get('bones')
+        if not bones:
+            bones = {
+                'metacarpal': finger_data.get('metacarpal'),
+                'proximal': finger_data.get('proximal'),
+                'intermediate': finger_data.get('intermediate'),
+                'distal': finger_data.get('distal'),
+            }
         metacarpal = bones.get('metacarpal')
         proximal = bones.get('proximal')
         intermediate = bones.get('intermediate')

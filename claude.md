@@ -1020,3 +1020,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 **Changes**:
 - **ui/hand_renderer_3d.py**: Removed palm sphere; made angle debug lines/points render without depth testing and with thicker sizes for visibility.
 - **ui/game_ui.py**: Added legend explaining MCP/PIP overlay colors on angle test screen.
+
+### 2026-02-18 (cont.)
+
+#### 3D Angle Overlay Bone Source Fix
+**User Report**: Angle overlay still not visible.
+
+**Fix**:
+- **ui/hand_renderer_3d.py**: Support bone data whether it comes from `finger_data['bones']` or direct `finger_data['metacarpal'|'proximal'|'intermediate'|'distal']` (display data path).
