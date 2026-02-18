@@ -469,7 +469,9 @@ class MenuUI:
             menu_options_text: List of strings for menu options.
             current_game_to_highlight: The GameMode enum of the game to highlight as currently active.
         """
-        self.surface.fill(BACKGROUND)
+        # Clear to transparent so 3D hand area can show through
+        self.surface.fill((0, 0, 0, 0))
+        pygame.draw.rect(self.surface, BACKGROUND, (0, 0, WINDOW_WIDTH, GAME_AREA_BOTTOM))
 
         # Draw decorative elements
         for i in range(100):
@@ -746,7 +748,7 @@ class MenuUI:
         # Footer instructions
         footer = "Press ESC to return to menu"
         footer_text = self.fonts['small'].render(footer, True, (100, 100, 150))
-        footer_rect = footer_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 40))
+        footer_rect = footer_text.get_rect(center=(WINDOW_WIDTH // 2, GAME_AREA_BOTTOM - 30))
         self.surface.blit(footer_text, footer_rect)
 
     def move_selection(self, direction: int, daily_session_locked: bool, has_calibration: bool,

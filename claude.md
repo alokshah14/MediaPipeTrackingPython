@@ -994,3 +994,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **ui/hand_renderer_3d.py**: Added angle debug overlay drawing with colored line segments and joint points for MCP (metacarpal+proximal) and PIP (proximal+intermediate).
 - **ui/game_ui.py**: Angle test table now highlights selected finger row.
 - **main.py**: Added left/right (A/D) finger selection for angle test; passes selected finger to 3D overlay.
+
+### 2026-02-18 (cont.)
+
+#### Angle Test 3D Visibility Fix
+**User Report**: 3D hand not visible in angle test (simulation).
+
+**Fix**:
+- **ui/game_ui.py**: Angle test screen now only fills the game area and leaves the hand area transparent so 3D rendering shows through.
