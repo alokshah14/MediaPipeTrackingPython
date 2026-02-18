@@ -1654,11 +1654,11 @@ class FingerInvaders:
             )
 
             # Show clean trial indicator if applicable
-                if trial_metrics.is_clean_trial:
-                    mlr_display = trial_metrics.motion_leakage_ratio
-                    if not (0.0 < mlr_display < float('inf')):
-                        mlr_display = trial_metrics.angle_based_mlr
-                    self.old_hand_renderer.show_clean_trial(mlr_display)
+            if trial_metrics.is_clean_trial:
+                mlr_display = trial_metrics.motion_leakage_ratio
+                if not (0.0 < mlr_display < float('inf')):
+                    mlr_display = trial_metrics.angle_based_mlr
+                self.old_hand_renderer.show_clean_trial(mlr_display)
 
             # Record trial for clean summary export
             self.trial_summary.record_trial(

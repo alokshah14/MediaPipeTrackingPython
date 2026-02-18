@@ -958,3 +958,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **ui/game_ui.py**: Menu selection handles optional Angle Test entry.
 - **game/ping_pong.py**: Added large "PRESS <FINGER>" prompt for clearer target.
 - **main.py**: Clean-trial display now uses angle-based MLR when position MLR is zero/inf.
+
+### 2026-02-18 (cont.)
+
+#### IndentationError Fix
+**User Report**: `IndentationError: unexpected indent` in `main.py` after recent changes.
+
+**Fix**:
+- **main.py**: Corrected indentation in `_log_and_process_press_event()` clean-trial display block.
