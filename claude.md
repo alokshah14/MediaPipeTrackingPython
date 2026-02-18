@@ -899,3 +899,13 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **tracking/trial_summary.py**: Added `is_test_mode` to the zero-trials SessionSummary path.
+
+### 2026-02-18 (cont.)
+
+#### Menu Banner Position + Smaller Zones
+**User Request**: Move session resume banner to top-left; reduce hit/catch zones and move them up.
+
+**Changes**:
+- **ui/game_ui.py**: Session resume banner moved to top-left (x=20, y=140).
+- **game/egg_catcher.py**: Catch zone moved up and narrowed (bottom = GAME_AREA_BOTTOM - 40, height = 50px).
+- **game/ping_pong.py**: Hit zone moved up and narrowed (bottom = GAME_AREA_BOTTOM - 40, height = 90px).

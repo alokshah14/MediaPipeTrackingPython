@@ -18,9 +18,9 @@ from game.constants import (
 from tracking.hand_tracker import HandTracker
 
 
-# Hit zone at the bottom (150px tall for a generous reaction window)
-HIT_ZONE_TOP = GAME_AREA_BOTTOM - 150
-HIT_ZONE_BOTTOM = GAME_AREA_BOTTOM
+# Hit zone is tighter and higher to reduce reaction time
+HIT_ZONE_BOTTOM = GAME_AREA_BOTTOM - 40
+HIT_ZONE_TOP = HIT_ZONE_BOTTOM - 90
 
 # Time required to complete this game (in seconds)
 REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes

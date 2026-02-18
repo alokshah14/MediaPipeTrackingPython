@@ -633,8 +633,8 @@ class MenuUI:
         time_text = f"{minutes:02d}:{seconds:02d}"
 
         banner_w, banner_h = 520, 60
-        x = (WINDOW_WIDTH - banner_w) // 2
-        y = 200
+        x = 20
+        y = 140
 
         banner = pygame.Surface((banner_w, banner_h), pygame.SRCALPHA)
         banner.fill((0, 0, 0, 180))

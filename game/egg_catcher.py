@@ -17,9 +17,9 @@ from game.constants import (
 from tracking.hand_tracker import HandTracker
 
 
-# Catch zone is at the bottom of the game area
-CATCH_ZONE_TOP = GAME_AREA_BOTTOM - 80
-CATCH_ZONE_BOTTOM = GAME_AREA_BOTTOM
+# Catch zone is tighter and higher to reduce reaction time
+CATCH_ZONE_BOTTOM = GAME_AREA_BOTTOM - 40
+CATCH_ZONE_TOP = CATCH_ZONE_BOTTOM - 50
 
 # Time required to complete this game (in seconds)
 REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes
