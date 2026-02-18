@@ -81,16 +81,17 @@ class FingerInvaders:
         self.clock = pygame.time.Clock()
 
         # Initialize Leap Motion
+        self.simulation_mode_requested = self.force_simulation
         if self.force_simulation:
             temp_leap_controller = LeapController()
             if not temp_leap_controller.simulation_mode and temp_leap_controller.has_device:
                 print("Simulation flag set, but Leap device detected. Using Leap input.")
                 self.leap_controller = temp_leap_controller
-                self.is_test_mode = False
             else:
                 print("Simulation mode: Leap not available, using keyboard input.")
                 self.leap_controller = SimulatedLeapController()
-                self.is_test_mode = True
+            # Simulation flag enables free-play menus even when using Leap input
+            self.is_test_mode = True
         else:
             temp_leap_controller = LeapController()
             if temp_leap_controller.simulation_mode:
@@ -487,7 +488,7 @@ class FingerInvaders:
                 playable_games = self.daily_session_manager.get_current_playable_games()
                 daily_locked = self.daily_session_manager.is_day_locked()
             include_angle_test = self.is_test_mode and not self.simulation_keyboard_only
-            include_calibrate = not self.simulation_keyboard_only
+            include_calibrate = not self.simulation_keyboard_only or not self.is_test_mode
             if event.key == pygame.K_UP:
                 self.menu_ui.move_selection(
                     -1, daily_locked, self._has_calibration_for_play(),
@@ -626,10 +627,10 @@ class FingerInvaders:
         menu_options = ["Calibrate"]
 
         if self.is_test_mode:
-            if not self.simulation_keyboard_only:
-                menu_options.append("Angle Test")
-            else:
+            if self.simulation_keyboard_only:
                 menu_options = []
+            else:
+                menu_options.append("Angle Test")
             menu_options.extend(ALL_GAME_MODES)
             menu_options.append("High Scores")
             menu_options.append("Quit")

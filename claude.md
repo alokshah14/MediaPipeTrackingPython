@@ -976,3 +976,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **main.py**: If `--simulation` and Leap device present, use Leap input (normal mode). If not present, use keyboard-only simulation.
 - **main.py**: When keyboard-only simulation, hide calibration/angle menus.
 - **ui/game_ui.py**: Menu selection respects optional calibration/angle entries.
+
+### 2026-02-18 (cont.)
+
+#### Simulation Flag Uses Leap + Free Play Menus
+**User Report**: `--simulation` with Leap connected didn't allow free play or Angle Test.
+
+**Fix**:
+- **main.py**: `--simulation` now always enables free-play menus; uses Leap input if device present, keyboard otherwise.
