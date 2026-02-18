@@ -1058,3 +1058,11 @@ analyzer.animate_session(save_path='session_replay.gif')
   - Press handling now hits the matching ball in zone; otherwise registers a wrong hit against the first eligible target.
   - UI highlights multiple lanes and displays multiple targets when needed.
   - Speed indicator now uses the fastest ball.
+
+### 2026-02-18 (cont.)
+
+#### Ping Pong Two-Ball Crash Fix
+**User Report**: `PingPong` missing `ball` attribute after adding second ball.
+
+**Fix**:
+- **main.py**: Ping Pong HUD speed now uses the fastest ball in `self.ping_pong_game.balls`.

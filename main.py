@@ -1496,8 +1496,8 @@ class FingerInvaders:
         # HUD (time + speed)
         game_state = self.ping_pong_game.get_game_state()
         speed = 0.0
-        if self.ping_pong_game.ball:
-            speed = (self.ping_pong_game.ball.vx ** 2 + self.ping_pong_game.ball.vy ** 2) ** 0.5
+        if self.ping_pong_game.balls:
+            speed = max((b.vx ** 2 + b.vy ** 2) ** 0.5 for b in self.ping_pong_game.balls)
         speed_pct = min(speed / 8.0, 1.0)
         self.game_ui.draw_time_hud(
             game_state['score'],
