@@ -137,8 +137,8 @@ class EggCatcher:
         """Get dynamic catch zone bounds based on difficulty."""
         # Difficulty multiplier grows with correct presses; clamp scaling.
         difficulty = max(1.0, self.difficulty_multiplier)
-        shrink = min(0.45, (difficulty - 1.0) * 0.18)  # up to 45% smaller
-        lift = min(70, int((difficulty - 1.0) * 25))    # move up to 70px
+        shrink = min(0.6, (difficulty - 1.0) * 0.28)  # up to 60% smaller
+        lift = min(100, int((difficulty - 1.0) * 40))  # move up to 100px
 
         zone_height = max(35, int(CATCH_ZONE_BASE_HEIGHT * (1.0 - shrink)))
         zone_bottom = GAME_AREA_BOTTOM - CATCH_ZONE_BASE_BOTTOM_OFFSET - lift

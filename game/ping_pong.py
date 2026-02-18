@@ -291,8 +291,8 @@ class PingPong:
     def get_hit_zone_bounds(self) -> tuple:
         """Get dynamic hit zone bounds based on difficulty."""
         difficulty = max(1.0, self.difficulty_multiplier)
-        shrink = min(0.45, (difficulty - 1.0) * 0.18)  # up to 45% smaller
-        lift = min(80, int((difficulty - 1.0) * 28))    # move up to 80px
+        shrink = min(0.6, (difficulty - 1.0) * 0.28)  # up to 60% smaller
+        lift = min(110, int((difficulty - 1.0) * 45))  # move up to 110px
 
         zone_height = max(50, int(HIT_ZONE_BASE_HEIGHT * (1.0 - shrink)))
         zone_bottom = GAME_AREA_BOTTOM - HIT_ZONE_BASE_BOTTOM_OFFSET - lift

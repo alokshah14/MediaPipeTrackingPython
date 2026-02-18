@@ -509,6 +509,19 @@ class FingerInvaders:
         """Starts a game session."""
         self.game_engine.set_game_mode(game_mode)
 
+        # Tune multi-press window per game to reduce perceived lag
+        from game.constants import (
+            MULTI_PRESS_WINDOW_MS,
+            PING_PONG_MULTI_PRESS_WINDOW_MS,
+            EGG_CATCHER_MULTI_PRESS_WINDOW_MS
+        )
+        if game_mode == GameMode.PING_PONG:
+            self.hand_tracker.set_multi_press_window_ms(PING_PONG_MULTI_PRESS_WINDOW_MS)
+        elif game_mode == GameMode.EGG_CATCHER:
+            self.hand_tracker.set_multi_press_window_ms(EGG_CATCHER_MULTI_PRESS_WINDOW_MS)
+        else:
+            self.hand_tracker.set_multi_press_window_ms(MULTI_PRESS_WINDOW_MS)
+
         if game_mode == GameMode.FINGER_INVADERS:
             self.game_engine.start_game()
         elif game_mode == GameMode.EGG_CATCHER:

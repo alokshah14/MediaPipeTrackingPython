@@ -72,6 +72,7 @@ class HandTracker:
         self.pending_press: Optional[Tuple[str, float]] = None
         self.multi_press_detected = False
         self.last_multi_press_time = 0
+        self.multi_press_window_ms = MULTI_PRESS_WINDOW_MS
 
         # Rolling buffer for kinematic analysis (1 second of frames)
         self.frame_buffer: deque = deque(maxlen=int(BUFFER_DURATION_MS / FRAME_SAMPLE_RATE_MS))
@@ -173,7 +174,7 @@ class HandTracker:
             finger, press_time = candidate_presses[0]
             if self.pending_press:
                 pending_finger, pending_time = self.pending_press
-                if finger != pending_finger and (press_time - pending_time) <= MULTI_PRESS_WINDOW_MS:
+                if finger != pending_finger and (press_time - pending_time) <= self.multi_press_window_ms:
                     # Two different fingers within window: suppress both
                     self.multi_press_detected = True
                     self.last_multi_press_time = current_time
@@ -181,7 +182,7 @@ class HandTracker:
                     self.press_events = []
                 else:
                     # Emit pending if it's aged out, and queue current
-                    if (press_time - pending_time) >= MULTI_PRESS_WINDOW_MS:
+                    if (press_time - pending_time) >= self.multi_press_window_ms:
                         if self.finger_states.get(pending_finger, False):
                             new_presses.append(pending_finger)
                             self.last_press_time[pending_finger] = pending_time
@@ -199,7 +200,7 @@ class HandTracker:
             # No new candidate presses; emit pending if window elapsed
             if self.pending_press:
                 pending_finger, pending_time = self.pending_press
-                if (current_time - pending_time) >= MULTI_PRESS_WINDOW_MS:
+                if (current_time - pending_time) >= self.multi_press_window_ms:
                     if self.finger_states.get(pending_finger, False):
                         new_presses.append(pending_finger)
                         self.last_press_time[pending_finger] = pending_time
@@ -432,6 +433,10 @@ class HandTracker:
             return False
         self.angle_calculation_mode = mode
         return True
+
+    def set_multi_press_window_ms(self, window_ms: int):
+        """Set the multi-press window (ms) for simultaneous press detection."""
+        self.multi_press_window_ms = max(20, int(window_ms))
 
     def get_angle_calculation_mode(self) -> str:
         """Get current angle calculation mode."""

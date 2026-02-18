@@ -926,3 +926,14 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Timing Window**:
 - Multi-press suppression still uses `MULTI_PRESS_WINDOW_MS` (see `game/constants.py`).
+
+### 2026-02-18 (cont.)
+
+#### Ping Pong Zone/Latency Follow-Up
+**User Report**: Hit zone still not dynamic and press felt laggy.
+
+**Changes**:
+- **game/constants.py**: Added per-game multi-press windows for reduced ping-pong latency.
+- **tracking/hand_tracker.py**: Added configurable multi-press window (`set_multi_press_window_ms`).
+- **main.py**: Set multi-press window per game (Ping Pong 60ms, Egg Catcher 100ms, others 120ms).
+- **game/egg_catcher.py** / **game/ping_pong.py**: Increased zone shrink/lift scaling so dynamic movement is visibly stronger.

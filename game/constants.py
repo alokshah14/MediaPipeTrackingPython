@@ -85,6 +85,8 @@ FINGER_PRESS_THRESHOLD = 0.3  # Default threshold (calibration will override)
 FINGER_PRESS_ANGLE_THRESHOLD = 30  # Degrees of flexion to consider finger pressed
 PRESS_DEBOUNCE_TIME = 200  # ms between registered presses
 MULTI_PRESS_WINDOW_MS = 120  # ms window to treat two presses as simultaneous
+PING_PONG_MULTI_PRESS_WINDOW_MS = 60
+EGG_CATCHER_MULTI_PRESS_WINDOW_MS = 100
 
 # Multi-press warning UI
 MULTI_PRESS_WARNING_DURATION_MS = 600
