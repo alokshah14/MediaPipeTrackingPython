@@ -17,9 +17,9 @@ from game.constants import (
 from tracking.hand_tracker import HandTracker
 
 
-# Catch zone is tighter and higher to reduce reaction time
-CATCH_ZONE_BOTTOM = GAME_AREA_BOTTOM - 40
-CATCH_ZONE_TOP = CATCH_ZONE_BOTTOM - 50
+# Catch zone baseline; actual zone scales with difficulty
+CATCH_ZONE_BASE_HEIGHT = 70
+CATCH_ZONE_BASE_BOTTOM_OFFSET = 10  # distance above GAME_AREA_BOTTOM
 
 # Time required to complete this game (in seconds)
 REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes
@@ -42,18 +42,18 @@ class Egg:
         self.spawn_time_ms = pygame.time.get_ticks()
         self.zone_enter_time_ms = 0
 
-    def update(self, dt: float):
+    def update(self, dt: float, zone_top: float, zone_bottom: float):
         """Update egg position."""
         self.y += self.speed * dt
 
         # Check if in catch zone
         was_in_zone = self.in_catch_zone
-        self.in_catch_zone = CATCH_ZONE_TOP <= self.y <= CATCH_ZONE_BOTTOM
+        self.in_catch_zone = zone_top <= self.y <= zone_bottom
         if self.in_catch_zone and not was_in_zone:
             self.zone_enter_time_ms = pygame.time.get_ticks()
 
         # Check if missed (fell past catch zone)
-        if self.y > CATCH_ZONE_BOTTOM + 20:
+        if self.y > zone_bottom + 20:
             self.active = False
 
     def draw(self, surface: pygame.Surface):
@@ -133,6 +133,18 @@ class EggCatcher:
             'wrong_fingers': 0,
         }
 
+    def get_catch_zone_bounds(self) -> tuple:
+        """Get dynamic catch zone bounds based on difficulty."""
+        # Difficulty multiplier grows with correct presses; clamp scaling.
+        difficulty = max(1.0, self.difficulty_multiplier)
+        shrink = min(0.45, (difficulty - 1.0) * 0.18)  # up to 45% smaller
+        lift = min(70, int((difficulty - 1.0) * 25))    # move up to 70px
+
+        zone_height = max(35, int(CATCH_ZONE_BASE_HEIGHT * (1.0 - shrink)))
+        zone_bottom = GAME_AREA_BOTTOM - CATCH_ZONE_BASE_BOTTOM_OFFSET - lift
+        zone_top = zone_bottom - zone_height
+        return zone_top, zone_bottom
+
     def set_previous_time(self, seconds: float):
         """Set the accumulated time from previous sessions."""
         self.previous_time = seconds
@@ -196,6 +208,8 @@ class EggCatcher:
             self._spawn_egg()
             self.last_spawn_time = current_time
 
+        zone_top, zone_bottom = self.get_catch_zone_bounds()
+
         # Update target fingers list (eggs in catch zone)
         self.target_fingers = [
             egg.finger_name for egg in self.eggs if egg.in_catch_zone
@@ -208,7 +222,7 @@ class EggCatcher:
 
         # Update eggs
         for egg in self.eggs[:]:
-            egg.update(dt)
+            egg.update(dt, zone_top, zone_bottom)
 
             if not egg.active:
                 # Egg fell past catch zone
@@ -328,15 +342,17 @@ class EggCatcher:
 
     def render(self, surface: pygame.Surface):
         """Render the game."""
+        zone_top, zone_bottom = self.get_catch_zone_bounds()
+
         # Draw catch zone
         catch_zone_rect = pygame.Rect(
-            0, CATCH_ZONE_TOP,
-            WINDOW_WIDTH, CATCH_ZONE_BOTTOM - CATCH_ZONE_TOP
+            0, zone_top,
+            WINDOW_WIDTH, zone_bottom - zone_top
         )
         pygame.draw.rect(surface, (40, 60, 40), catch_zone_rect)
         pygame.draw.line(
             surface, (80, 120, 80),
-            (0, CATCH_ZONE_TOP), (WINDOW_WIDTH, CATCH_ZONE_TOP), 2
+            (0, zone_top), (WINDOW_WIDTH, zone_top), 2
         )
 
         # Draw lane dividers
@@ -352,7 +368,7 @@ class EggCatcher:
             x = (i * LANE_WIDTH) + (LANE_WIDTH // 2)
             basket_w = LANE_WIDTH - 16
             basket_h = 30
-            basket_y = CATCH_ZONE_BOTTOM - basket_h - 8
+            basket_y = zone_bottom - basket_h - 8
 
             # Highlight basket if an egg for this lane is in the catch zone
             has_target = any(
@@ -422,7 +438,7 @@ class EggCatcher:
         # Draw "CATCH ZONE" label
         zone_font = pygame.font.Font(None, 28)
         zone_label = zone_font.render("CATCH ZONE", True, (100, 180, 100))
-        zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, CATCH_ZONE_TOP + 15))
+        zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, zone_top + 15))
         surface.blit(zone_label, zone_rect)
 
         # Time left is rendered in the main HUD

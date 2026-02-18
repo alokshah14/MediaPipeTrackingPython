@@ -18,9 +18,9 @@ from game.constants import (
 from tracking.hand_tracker import HandTracker
 
 
-# Hit zone is tighter and higher to reduce reaction time
-HIT_ZONE_BOTTOM = GAME_AREA_BOTTOM - 40
-HIT_ZONE_TOP = HIT_ZONE_BOTTOM - 90
+# Hit zone baseline; actual zone scales with difficulty
+HIT_ZONE_BASE_HEIGHT = 140
+HIT_ZONE_BASE_BOTTOM_OFFSET = 10  # distance above GAME_AREA_BOTTOM
 
 # Time required to complete this game (in seconds)
 REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes
@@ -66,13 +66,13 @@ class Ball:
         lane = int(self.x // LANE_WIDTH)
         return max(0, min(lane, NUM_LANES - 1))
 
-    def is_in_hit_zone(self) -> bool:
+    def is_in_hit_zone(self, zone_top: float, zone_bottom: float) -> bool:
         """Check if ball is in the hit zone."""
-        return HIT_ZONE_TOP <= self.y + self.radius <= HIT_ZONE_BOTTOM
+        return zone_top <= self.y + self.radius <= zone_bottom
 
-    def is_missed(self) -> bool:
+    def is_missed(self, zone_bottom: float) -> bool:
         """Check if ball went past the hit zone."""
-        return self.y - self.radius > HIT_ZONE_BOTTOM
+        return self.y - self.radius > zone_bottom
 
     def bounce_up(self, speed_increase: float = 0.1):
         """Bounce ball back up with slight speed increase."""
@@ -153,6 +153,7 @@ class PingPong:
         self.zone_enter_time_ms = 0
         self.rally_count = 0
         self.difficulty_multiplier = 1.0
+        self.zone_exit_time_ms = 0
         self.stats = {
             'total_hits': 0,
             'correct_hits': 0,
@@ -188,18 +189,20 @@ class PingPong:
         # Update ball
         self.ball.update(dt)
 
+        zone_top, zone_bottom = self.get_hit_zone_bounds()
+
         # Track ball entering hit zone
-        if self.ball.is_in_hit_zone() and not self.ball_in_zone:
+        if self.ball.is_in_hit_zone(zone_top, zone_bottom) and not self.ball_in_zone:
             self.ball_in_zone = True
             self.zone_enter_time_ms = pygame.time.get_ticks()
 
         # Update target finger while ball is in zone (may drift between lanes)
-        if self.ball_in_zone and not self.ball.is_missed():
+        if self.ball_in_zone and not self.ball.is_missed(zone_bottom):
             lane = self.ball.get_lane()
             self.target_finger = FINGER_NAMES[lane]
 
         # Check if ball went past the bottom (missed)
-        if self.ball.is_missed():
+        if self.ball.is_missed(zone_bottom):
             self.stats['misses'] += 1
             events['ball_missed'] = True
             events['missed_target'] = self.target_finger
@@ -208,23 +211,28 @@ class PingPong:
             self.ball.reset()
             self.ball_in_zone = False
             self.target_finger = None
+            self.zone_exit_time_ms = pygame.time.get_ticks()
 
         # If ball bounced back above the zone, clear zone state
-        if self.ball_in_zone and self.ball.y + self.ball.radius < HIT_ZONE_TOP:
+        if self.ball_in_zone and self.ball.y + self.ball.radius < zone_top:
             self.ball_in_zone = False
             self.target_finger = None
+            self.zone_exit_time_ms = pygame.time.get_ticks()
 
         # Check for finger presses
         pressed_fingers = self.hand_tracker.update()
         for finger in pressed_fingers:
-            self._handle_finger_press(finger, events)
+            self._handle_finger_press(finger, events, zone_top, zone_bottom)
 
         return events
 
-    def _handle_finger_press(self, finger: str, events: Dict):
+    def _handle_finger_press(self, finger: str, events: Dict, zone_top: float, zone_bottom: float):
         """Handle a finger press event."""
+        press_time_ms = self.hand_tracker.get_press_timestamp(finger)
         if not self.ball_in_zone:
-            return  # Ignore presses when ball not in zone
+            # Allow slightly delayed processing if the press happened while ball was in zone
+            if not (self.zone_enter_time_ms <= press_time_ms <= self.zone_exit_time_ms):
+                return  # Ignore presses when ball not in zone
 
         lane = self.ball.get_lane()
         target = FINGER_NAMES[lane]
@@ -280,10 +288,23 @@ class PingPong:
         """Decrease difficulty after mistakes."""
         self.difficulty_multiplier = max(0.5, self.difficulty_multiplier - 0.05)
 
+    def get_hit_zone_bounds(self) -> tuple:
+        """Get dynamic hit zone bounds based on difficulty."""
+        difficulty = max(1.0, self.difficulty_multiplier)
+        shrink = min(0.45, (difficulty - 1.0) * 0.18)  # up to 45% smaller
+        lift = min(80, int((difficulty - 1.0) * 28))    # move up to 80px
+
+        zone_height = max(50, int(HIT_ZONE_BASE_HEIGHT * (1.0 - shrink)))
+        zone_bottom = GAME_AREA_BOTTOM - HIT_ZONE_BASE_BOTTOM_OFFSET - lift
+        zone_top = zone_bottom - zone_height
+        return zone_top, zone_bottom
+
     def render(self, surface: pygame.Surface):
         """Render the game."""
+        zone_top, zone_bottom = self.get_hit_zone_bounds()
+
         # Draw hit zone
-        hit_zone_rect = pygame.Rect(0, HIT_ZONE_TOP, WINDOW_WIDTH, HIT_ZONE_BOTTOM - HIT_ZONE_TOP)
+        hit_zone_rect = pygame.Rect(0, zone_top, WINDOW_WIDTH, zone_bottom - zone_top)
         pygame.draw.rect(surface, (40, 40, 60), hit_zone_rect)
 
         # Draw lane dividers
@@ -302,7 +323,7 @@ class PingPong:
             paddle_height = 14
             paddle_rect = pygame.Rect(
                 x - paddle_width // 2,
-                HIT_ZONE_BOTTOM - paddle_height - 5,
+                zone_bottom - paddle_height - 5,
                 paddle_width,
                 paddle_height
             )
@@ -317,23 +338,23 @@ class PingPong:
 
             # Draw finger label
             label = font.render(name, True, (150, 150, 180))
-            label_rect = label.get_rect(center=(x, HIT_ZONE_BOTTOM - 25))
+            label_rect = label.get_rect(center=(x, zone_bottom - 25))
             surface.blit(label, label_rect)
 
         # Draw "HIT ZONE" label
         zone_font = pygame.font.Font(None, 28)
         zone_label = zone_font.render("HIT ZONE - Press matching key!", True, (100, 180, 100))
-        zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, HIT_ZONE_TOP + 15))
+        zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, zone_top + 15))
         surface.blit(zone_label, zone_rect)
 
         # Highlight current lane if ball in zone
         if self.ball_in_zone:
             lane = self.ball.get_lane()
             lane_x = lane * LANE_WIDTH
-            highlight_rect = pygame.Rect(lane_x, HIT_ZONE_TOP, LANE_WIDTH, HIT_ZONE_BOTTOM - HIT_ZONE_TOP)
-            highlight_surface = pygame.Surface((LANE_WIDTH, HIT_ZONE_BOTTOM - HIT_ZONE_TOP), pygame.SRCALPHA)
+            highlight_rect = pygame.Rect(lane_x, zone_top, LANE_WIDTH, zone_bottom - zone_top)
+            highlight_surface = pygame.Surface((LANE_WIDTH, zone_bottom - zone_top), pygame.SRCALPHA)
             highlight_surface.fill((100, 255, 100, 50))
-            surface.blit(highlight_surface, (lane_x, HIT_ZONE_TOP))
+            surface.blit(highlight_surface, (lane_x, zone_top))
 
         # Draw ball
         self.ball.draw(surface)

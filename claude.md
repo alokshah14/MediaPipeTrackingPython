@@ -909,3 +909,20 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **ui/game_ui.py**: Session resume banner moved to top-left (x=20, y=140).
 - **game/egg_catcher.py**: Catch zone moved up and narrowed (bottom = GAME_AREA_BOTTOM - 40, height = 50px).
 - **game/ping_pong.py**: Hit zone moved up and narrowed (bottom = GAME_AREA_BOTTOM - 40, height = 90px).
+
+### 2026-02-18 (cont.)
+
+#### Dynamic Zone Scaling + Ping Pong Press Reliability
+**User Request**: Hit/catch zones should shrink and move up as speed increases; Ping Pong presses sometimes not registering.
+
+**Changes**:
+- **game/egg_catcher.py**:
+  - Catch zone now computed dynamically based on difficulty multiplier (shrinks + lifts as difficulty rises).
+  - Eggs use per-frame zone bounds for in-zone checks and misses.
+- **game/ping_pong.py**:
+  - Hit zone now computed dynamically based on difficulty multiplier.
+  - Ball zone logic uses dynamic bounds.
+  - Press handling now uses the actual press timestamp; if a press occurred while the ball was in the zone but is processed slightly later, it still counts.
+
+**Timing Window**:
+- Multi-press suppression still uses `MULTI_PRESS_WINDOW_MS` (see `game/constants.py`).
