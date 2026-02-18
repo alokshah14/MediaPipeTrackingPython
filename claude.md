@@ -1046,3 +1046,15 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **main.py**: If `--simulation` and Leap isn't producing data after a short grace period, automatically switch to keyboard simulation and update the hand tracker.
+
+### 2026-02-18 (cont.)
+
+#### Ping Pong: Two Balls
+**User Request**: Add a second ping pong ball that behaves like the first.
+
+**Changes**:
+- **game/ping_pong.py**:
+  - Added two balls with per-ball zone state, targets, and timing.
+  - Press handling now hits the matching ball in zone; otherwise registers a wrong hit against the first eligible target.
+  - UI highlights multiple lanes and displays multiple targets when needed.
+  - Speed indicator now uses the fastest ball.

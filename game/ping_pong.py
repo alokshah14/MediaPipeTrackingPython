@@ -101,7 +101,7 @@ class PingPong:
         self.game_mode = GameMode.PING_PONG
 
         self.score = 0
-        self.ball = Ball()
+        self.balls = [Ball(), Ball()]
         self.game_over = False
         self.session_complete = False
 
@@ -112,9 +112,8 @@ class PingPong:
         self.required_time = REQUIRED_PLAY_TIME
 
         # Track current target finger
+        self.ball_states = []
         self.target_finger = None
-        self.ball_in_zone = False
-        self.zone_enter_time_ms = 0
 
         # Difficulty
         self.rally_count = 0
@@ -143,17 +142,30 @@ class PingPong:
     def start_game(self):
         """Start a new game session."""
         self.score = 0
-        self.ball.reset()
+        for ball in self.balls:
+            ball.reset()
         self.game_over = False
         self.session_complete = False
         self.session_start_time = pygame.time.get_ticks()
         self.elapsed_time = 0.0
         self.target_finger = None
-        self.ball_in_zone = False
-        self.zone_enter_time_ms = 0
+        now = pygame.time.get_ticks()
+        self.ball_states = []
+        for idx, ball in enumerate(self.balls):
+            state = {
+                'ball': ball,
+                'in_zone': False,
+                'zone_enter_time_ms': 0,
+                'zone_exit_time_ms': 0,
+                'target_finger': None,
+            }
+            # Stagger second ball so it arrives a bit later
+            if idx == 1:
+                ball.y = GAME_AREA_TOP - 200
+                ball.appear_time_ms = now
+            self.ball_states.append(state)
         self.rally_count = 0
         self.difficulty_multiplier = 1.0
-        self.zone_exit_time_ms = 0
         self.stats = {
             'total_hits': 0,
             'correct_hits': 0,
@@ -186,38 +198,45 @@ class PingPong:
             events['time_complete'] = True
             return events
 
-        # Update ball
-        self.ball.update(dt)
-
         zone_top, zone_bottom = self.get_hit_zone_bounds()
 
-        # Track ball entering hit zone
-        if self.ball.is_in_hit_zone(zone_top, zone_bottom) and not self.ball_in_zone:
-            self.ball_in_zone = True
-            self.zone_enter_time_ms = pygame.time.get_ticks()
+        active_targets = []
 
-        # Update target finger while ball is in zone (may drift between lanes)
-        if self.ball_in_zone and not self.ball.is_missed(zone_bottom):
-            lane = self.ball.get_lane()
-            self.target_finger = FINGER_NAMES[lane]
+        # Update balls
+        for state in self.ball_states:
+            ball = state['ball']
+            ball.update(dt)
 
-        # Check if ball went past the bottom (missed)
-        if self.ball.is_missed(zone_bottom):
-            self.stats['misses'] += 1
-            events['ball_missed'] = True
-            events['missed_target'] = self.target_finger
-            self.rally_count = 0
-            self._decrease_difficulty()
-            self.ball.reset()
-            self.ball_in_zone = False
-            self.target_finger = None
-            self.zone_exit_time_ms = pygame.time.get_ticks()
+            # Track ball entering hit zone
+            if ball.is_in_hit_zone(zone_top, zone_bottom) and not state['in_zone']:
+                state['in_zone'] = True
+                state['zone_enter_time_ms'] = pygame.time.get_ticks()
 
-        # If ball bounced back above the zone, clear zone state
-        if self.ball_in_zone and self.ball.y + self.ball.radius < zone_top:
-            self.ball_in_zone = False
-            self.target_finger = None
-            self.zone_exit_time_ms = pygame.time.get_ticks()
+            # Update target finger while ball is in zone (may drift between lanes)
+            if state['in_zone'] and not ball.is_missed(zone_bottom):
+                lane = ball.get_lane()
+                state['target_finger'] = FINGER_NAMES[lane]
+                active_targets.append(state['target_finger'])
+
+            # Check if ball went past the bottom (missed)
+            if ball.is_missed(zone_bottom):
+                self.stats['misses'] += 1
+                events['ball_missed'] = True
+                events['missed_target'] = state.get('target_finger')
+                self.rally_count = 0
+                self._decrease_difficulty()
+                ball.reset()
+                state['in_zone'] = False
+                state['target_finger'] = None
+                state['zone_exit_time_ms'] = pygame.time.get_ticks()
+
+            # If ball bounced back above the zone, clear zone state
+            if state['in_zone'] and ball.y + ball.radius < zone_top:
+                state['in_zone'] = False
+                state['target_finger'] = None
+                state['zone_exit_time_ms'] = pygame.time.get_ticks()
+
+        self.target_finger = active_targets[0] if active_targets else None
 
         # Check for finger presses
         pressed_fingers = self.hand_tracker.update()
@@ -229,15 +248,31 @@ class PingPong:
     def _handle_finger_press(self, finger: str, events: Dict, zone_top: float, zone_bottom: float):
         """Handle a finger press event."""
         press_time_ms = self.hand_tracker.get_press_timestamp(finger)
-        if not self.ball_in_zone:
-            # Allow slightly delayed processing if the press happened while ball was in zone
-            if not (self.zone_enter_time_ms <= press_time_ms <= self.zone_exit_time_ms):
-                return  # Ignore presses when ball not in zone
+        eligible_states = []
+        for state in self.ball_states:
+            if state['in_zone']:
+                eligible_states.append(state)
+            else:
+                if state['zone_enter_time_ms'] <= press_time_ms <= state['zone_exit_time_ms']:
+                    eligible_states.append(state)
 
-        lane = self.ball.get_lane()
-        target = FINGER_NAMES[lane]
+        if not eligible_states:
+            return
 
-        if finger == target:
+        # Prefer a ball whose target matches the pressed finger
+        matching_state = None
+        for state in eligible_states:
+            ball = state['ball']
+            lane = ball.get_lane()
+            target = FINGER_NAMES[lane]
+            if finger == target:
+                matching_state = state
+                break
+
+        if matching_state:
+            ball = matching_state['ball']
+            lane = ball.get_lane()
+            target = FINGER_NAMES[lane]
             # Correct hit!
             self.score += POINTS_CORRECT_HIT
             events['score_change'] = POINTS_CORRECT_HIT
@@ -252,16 +287,21 @@ class PingPong:
                 'target': target,
                 'correct': True,
                 'press_time_ms': pygame.time.get_ticks(),
-                'ball_appear_time_ms': self.ball.appear_time_ms,
-                'zone_enter_time_ms': self.zone_enter_time_ms,
+                'ball_appear_time_ms': ball.appear_time_ms,
+                'zone_enter_time_ms': matching_state['zone_enter_time_ms'],
             })
 
             # Bounce ball back (speed increases with each hit)
-            self.ball.bounce_up(0.15 * self.difficulty_multiplier)
-            self.ball_in_zone = False
-            self.target_finger = None
+            ball.bounce_up(0.15 * self.difficulty_multiplier)
+            matching_state['in_zone'] = False
+            matching_state['target_finger'] = None
 
         else:
+            # No matching ball in zone: treat as wrong against first eligible target
+            state = eligible_states[0]
+            ball = state['ball']
+            lane = ball.get_lane()
+            target = FINGER_NAMES[lane]
             # Wrong finger
             self.score += POINTS_WRONG_FINGER
             events['score_change'] = POINTS_WRONG_FINGER
@@ -275,8 +315,8 @@ class PingPong:
                 'target': target,
                 'correct': False,
                 'press_time_ms': pygame.time.get_ticks(),
-                'ball_appear_time_ms': self.ball.appear_time_ms,
-                'zone_enter_time_ms': self.zone_enter_time_ms,
+                'ball_appear_time_ms': ball.appear_time_ms,
+                'zone_enter_time_ms': state['zone_enter_time_ms'],
             })
 
     def _increase_difficulty(self):
@@ -349,25 +389,28 @@ class PingPong:
         zone_rect = zone_label.get_rect(center=(WINDOW_WIDTH // 2, zone_top + 15))
         surface.blit(zone_label, zone_rect)
 
-        # Show target finger prominently
-        if self.target_finger:
+        # Show target finger(s) prominently
+        targets = [state['target_finger'] for state in self.ball_states if state.get('target_finger')]
+        if targets:
+            target_display = ", ".join(t.replace('_', ' ').upper() for t in targets)
             target_font = pygame.font.Font(None, 48)
-            target_display = self.target_finger.replace('_', ' ').upper()
             target_text = target_font.render(f"PRESS {target_display}", True, (255, 230, 120))
             target_rect = target_text.get_rect(center=(WINDOW_WIDTH // 2, GAME_AREA_TOP + 40))
             surface.blit(target_text, target_rect)
 
-        # Highlight current lane if ball in zone
-        if self.ball_in_zone:
-            lane = self.ball.get_lane()
-            lane_x = lane * LANE_WIDTH
-            highlight_rect = pygame.Rect(lane_x, zone_top, LANE_WIDTH, zone_bottom - zone_top)
-            highlight_surface = pygame.Surface((LANE_WIDTH, zone_bottom - zone_top), pygame.SRCALPHA)
-            highlight_surface.fill((100, 255, 100, 50))
-            surface.blit(highlight_surface, (lane_x, zone_top))
+        # Highlight current lanes if balls in zone
+        for state in self.ball_states:
+            if state.get('in_zone'):
+                lane = state['ball'].get_lane()
+                lane_x = lane * LANE_WIDTH
+                highlight_rect = pygame.Rect(lane_x, zone_top, LANE_WIDTH, zone_bottom - zone_top)
+                highlight_surface = pygame.Surface((LANE_WIDTH, zone_bottom - zone_top), pygame.SRCALPHA)
+                highlight_surface.fill((100, 255, 100, 50))
+                surface.blit(highlight_surface, (lane_x, zone_top))
 
-        # Draw ball
-        self.ball.draw(surface)
+        # Draw balls
+        for state in self.ball_states:
+            state['ball'].draw(surface)
 
         # Time left is rendered in the main HUD
 
@@ -379,7 +422,7 @@ class PingPong:
         surface.blit(rally_label, rally_rect)
 
         # Draw speed indicator
-        speed = math.sqrt(self.ball.vx**2 + self.ball.vy**2)
+        speed = max(math.sqrt(b.vx**2 + b.vy**2) for b in self.balls)
         speed_pct = min(speed / 8.0, 1.0)  # 8.0 is max speed
         speed_color = (
             int(255 * speed_pct),
@@ -400,9 +443,11 @@ class PingPong:
 
     def get_highlighted_fingers(self) -> List[str]:
         """Get fingers that should be highlighted."""
-        if self.target_finger:
-            return [self.target_finger]
-        return []
+        targets = []
+        for state in self.ball_states:
+            if state.get('target_finger'):
+                targets.append(state['target_finger'])
+        return targets
 
     def get_game_state(self) -> Dict:
         """Get current game state."""
