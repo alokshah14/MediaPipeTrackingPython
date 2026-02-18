@@ -1471,12 +1471,9 @@ class FingerInvaders:
         status = self.calibration.get_calibration_status()
         instructions = self.calibration.get_instructions()
 
-        # Draw hand visualization
+        # Update 3D hand renderer so hands show in the bottom area
         hand_data = self.hand_tracker.get_display_data()
         finger_states = self.hand_tracker.get_all_finger_states()
-        self.calibration_renderer.draw(hand_data, finger_states)
-
-        # Update 3D hand renderer so hands show in the bottom area
         highlighted = {self.calibration.get_current_finger()} if self.calibration.get_current_finger() else set()
         self.hand_renderer.set_hand_data(hand_data, finger_states, highlighted)
 

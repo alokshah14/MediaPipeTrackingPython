@@ -102,6 +102,8 @@ class HandTracker:
 
         # Get latest hand data from Leap
         hands_data = self.leap.update()
+        if hasattr(self.leap, "has_recent_data") and not self.leap.has_recent_data():
+            hands_data = {'left': None, 'right': None}
         self.latest_hand_data = hands_data # Store the latest hand data
 
         # Update hand visibility

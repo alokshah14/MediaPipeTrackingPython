@@ -851,3 +851,15 @@ analyzer.animate_session(save_path='session_replay.gif')
    - Added "Angle Test" to main menu.
    - New angle test state rendering with live angles + baseline/delta readouts.
    - Controls: `T` toggle PIP/MCP, `SPACE` capture baseline, `R` reset baseline, `ESC` back to menu.
+
+### 2026-02-18 (cont.)
+
+#### Timing + Calibration Render Fixes
+**User Request**: Pause segment timer when hands are not detected, and show only 3D hands during calibration.
+
+**Changes Made**:
+1. **tracking/hand_tracker.py**:
+   - If Leap has no recent data, treat hands as not visible so auto-pause stops the session timer reliably.
+
+2. **main.py**:
+   - Calibration render now uses only the 3D hand renderer (removed 2D hand overlay).
