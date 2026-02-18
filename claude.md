@@ -966,3 +966,13 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **main.py**: Corrected indentation in `_log_and_process_press_event()` clean-trial display block.
+
+### 2026-02-18 (cont.)
+
+#### Simulation Mode Uses Leap When Available
+**User Request**: In simulation mode, use Leap if connected; otherwise use keyboard and hide calibration/angle menus.
+
+**Changes**:
+- **main.py**: If `--simulation` and Leap device present, use Leap input (normal mode). If not present, use keyboard-only simulation.
+- **main.py**: When keyboard-only simulation, hide calibration/angle menus.
+- **ui/game_ui.py**: Menu selection respects optional calibration/angle entries.

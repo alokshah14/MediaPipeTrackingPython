@@ -749,10 +749,12 @@ class MenuUI:
 
     def move_selection(self, direction: int, daily_session_locked: bool, has_calibration: bool,
                        current_segment_info: Dict, playable_games: List[GameMode],
-                       include_angle_test: bool = True):
+                       include_angle_test: bool = True, include_calibrate: bool = True):
         """Move menu selection, adjusting for dynamic options based on daily session state."""
         
-        menu_options = ["Calibrate"]
+        menu_options = []
+        if include_calibrate:
+            menu_options.append("Calibrate")
         if include_angle_test:
             menu_options.append("Angle Test")
         if not daily_session_locked:
@@ -775,7 +777,7 @@ class MenuUI:
 
             can_select = True
             if "Calibrate" in str(selected_option_value): # Calibrate option
-                can_select = True
+                can_select = include_calibrate
             elif "Angle Test" in str(selected_option_value):
                 can_select = include_angle_test
             elif "Quit" in str(selected_option_value): # Quit option

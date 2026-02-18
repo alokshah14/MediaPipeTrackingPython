@@ -82,9 +82,15 @@ class FingerInvaders:
 
         # Initialize Leap Motion
         if self.force_simulation:
-            print("Running in simulation mode - use keyboard for input")
-            self.leap_controller = SimulatedLeapController()
-            self.is_test_mode = True
+            temp_leap_controller = LeapController()
+            if not temp_leap_controller.simulation_mode and temp_leap_controller.has_device:
+                print("Simulation flag set, but Leap device detected. Using Leap input.")
+                self.leap_controller = temp_leap_controller
+                self.is_test_mode = False
+            else:
+                print("Simulation mode: Leap not available, using keyboard input.")
+                self.leap_controller = SimulatedLeapController()
+                self.is_test_mode = True
         else:
             temp_leap_controller = LeapController()
             if temp_leap_controller.simulation_mode:
@@ -97,6 +103,7 @@ class FingerInvaders:
 
         # In simulation mode, allow play without calibration
         self.allow_play_without_calibration = self.is_test_mode
+        self.simulation_keyboard_only = isinstance(self.leap_controller, SimulatedLeapController)
 
         # Initialize calibration and hand tracking
         self.calibration = CalibrationManager()
@@ -479,11 +486,18 @@ class FingerInvaders:
                 current_segment_info = self.daily_session_manager.get_current_segment_info()
                 playable_games = self.daily_session_manager.get_current_playable_games()
                 daily_locked = self.daily_session_manager.is_day_locked()
-            include_angle_test = self.is_test_mode
+            include_angle_test = self.is_test_mode and not self.simulation_keyboard_only
+            include_calibrate = not self.simulation_keyboard_only
             if event.key == pygame.K_UP:
-                self.menu_ui.move_selection(-1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games, include_angle_test)
+                self.menu_ui.move_selection(
+                    -1, daily_locked, self._has_calibration_for_play(),
+                    current_segment_info, playable_games, include_angle_test, include_calibrate
+                )
             elif event.key == pygame.K_DOWN:
-                self.menu_ui.move_selection(1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games, include_angle_test)
+                self.menu_ui.move_selection(
+                    1, daily_locked, self._has_calibration_for_play(),
+                    current_segment_info, playable_games, include_angle_test, include_calibrate
+                )
             elif event.key == pygame.K_RETURN:
                 self._handle_menu_selection()
 
@@ -612,7 +626,10 @@ class FingerInvaders:
         menu_options = ["Calibrate"]
 
         if self.is_test_mode:
-            menu_options.append("Angle Test")
+            if not self.simulation_keyboard_only:
+                menu_options.append("Angle Test")
+            else:
+                menu_options = []
             menu_options.extend(ALL_GAME_MODES)
             menu_options.append("High Scores")
             menu_options.append("Quit")
