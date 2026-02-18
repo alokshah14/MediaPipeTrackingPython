@@ -178,6 +178,7 @@ class TrialSummaryExporter:
                 end_time=datetime.now().isoformat(),
                 duration_seconds=0,
                 game_mode=game_mode,
+                is_test_mode=self.is_test_mode,
                 total_trials=0,
                 correct_trials=0,
                 wrong_finger_trials=0,

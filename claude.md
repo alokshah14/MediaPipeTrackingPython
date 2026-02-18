@@ -891,3 +891,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 4. **main.py**:
    - Triggers warnings during gameplay when multi-press is detected.
    - Draws warning overlay in all games.
+
+### 2026-02-18 (cont.)
+
+#### Trial Summary Zero-Trial Crash Fix
+**User Report**: App crashed on exit with `SessionSummary.__init__() missing 1 required positional argument: 'is_test_mode'` when no trials occurred.
+
+**Fix**:
+- **tracking/trial_summary.py**: Added `is_test_mode` to the zero-trials SessionSummary path.
