@@ -58,6 +58,9 @@ class OpenGLHandRenderer:
 
         # Animation
         self.pulse_phase = 0.0
+        self.angle_debug_finger = None
+        self.show_angle_pip = False
+        self.show_angle_mcp = False
 
     def _init_opengl(self):
         """Initialize OpenGL settings for 3D rendering."""
@@ -88,6 +91,12 @@ class OpenGLHandRenderer:
         self.finger_states = finger_states
         if highlighted_fingers is not None:
             self.highlighted_fingers = highlighted_fingers
+
+    def set_angle_debug(self, finger_name: Optional[str], show_pip: bool = True, show_mcp: bool = True):
+        """Enable angle debug overlay for a specific finger."""
+        self.angle_debug_finger = finger_name
+        self.show_angle_pip = show_pip
+        self.show_angle_mcp = show_mcp
 
     def draw(self):
         """Draw the 3D hand visualization."""
@@ -298,7 +307,67 @@ class OpenGLHandRenderer:
 
                 glPopMatrix()
 
+            # Angle debug overlay for selected finger
+            full_finger_name = f"{hand_type}_{finger_name}"
+            if self.angle_debug_finger == full_finger_name:
+                self._draw_angle_debug_for_finger(finger_data, palm_pos, scale_factor)
+
         glPopMatrix()  # Pop hand transformation
+
+    def _draw_angle_debug_for_finger(self, finger_data: Dict, palm_pos: List[float], scale_factor: float):
+        """Draw colored lines/points showing MCP and PIP angle segments."""
+        def to_rel(pos):
+            return [
+                (pos[0] - palm_pos[0]) * scale_factor,
+                (pos[1] - palm_pos[1]) * scale_factor,
+                -(pos[2] - palm_pos[2]) * scale_factor,
+            ]
+
+        def draw_segment(start, end, color, width=3.0):
+            glDisable(GL_LIGHTING)
+            glLineWidth(width)
+            glColor3f(*color)
+            glBegin(GL_LINES)
+            glVertex3f(start[0], start[1], start[2])
+            glVertex3f(end[0], end[1], end[2])
+            glEnd()
+            glEnable(GL_LIGHTING)
+
+        def draw_point(pos, color, radius=3.5):
+            glDisable(GL_LIGHTING)
+            glPushMatrix()
+            glTranslatef(pos[0], pos[1], pos[2])
+            glColor3f(*color)
+            gluSphere(self.quadric, radius, 8, 8)
+            glPopMatrix()
+            glEnable(GL_LIGHTING)
+
+        bones = finger_data.get('bones', {})
+        metacarpal = bones.get('metacarpal')
+        proximal = bones.get('proximal')
+        intermediate = bones.get('intermediate')
+
+        # MCP: metacarpal + proximal
+        if self.show_angle_mcp and metacarpal and proximal:
+            m_start = to_rel(metacarpal['start'])
+            m_end = to_rel(metacarpal['end'])
+            p_start = to_rel(proximal['start'])
+            p_end = to_rel(proximal['end'])
+            draw_segment(m_start, m_end, (0.2, 0.6, 1.0), width=3.0)
+            draw_segment(p_start, p_end, (0.2, 1.0, 0.6), width=3.0)
+            draw_point(m_end, (0.2, 0.6, 1.0))
+            draw_point(p_start, (0.2, 1.0, 0.6))
+
+        # PIP: proximal + intermediate
+        if self.show_angle_pip and proximal and intermediate:
+            p_start = to_rel(proximal['start'])
+            p_end = to_rel(proximal['end'])
+            i_start = to_rel(intermediate['start'])
+            i_end = to_rel(intermediate['end'])
+            draw_segment(p_start, p_end, (1.0, 0.2, 0.8), width=2.8)
+            draw_segment(i_start, i_end, (1.0, 0.6, 0.2), width=2.8)
+            draw_point(p_end, (1.0, 0.2, 0.8))
+            draw_point(i_start, (1.0, 0.6, 0.2))
 
     def update(self, dt: float):
         """Update animations."""

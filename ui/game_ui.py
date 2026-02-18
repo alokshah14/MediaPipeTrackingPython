@@ -693,7 +693,8 @@ class MenuUI:
 
     def draw_angle_test_menu(self, angle_mode: str, baseline_source: str,
                              angles: Dict[str, float], baselines: Dict[str, Optional[float]],
-                             deltas: Dict[str, float], calibration_mode: Optional[str] = None):
+                             deltas: Dict[str, float], calibration_mode: Optional[str] = None,
+                             selected_finger: Optional[str] = None):
         """Draw the angle test screen."""
         self.surface.fill(BACKGROUND)
 
@@ -733,7 +734,8 @@ class MenuUI:
             base_text = f"{baseline:.1f}" if baseline is not None else "--"
             delta_text = f"{delta:.1f}"
 
-            self.surface.blit(self.fonts['small'].render(display, True, WHITE), (x_positions[0], row_y))
+            row_color = WHITE if finger_name != selected_finger else (255, 230, 120)
+            self.surface.blit(self.fonts['small'].render(display, True, row_color), (x_positions[0], row_y))
             self.surface.blit(self.fonts['small'].render(f"{angle:.1f}", True, WHITE), (x_positions[1], row_y))
             self.surface.blit(self.fonts['small'].render(base_text, True, GRAY), (x_positions[2], row_y))
             delta_color = (100, 255, 100) if delta >= 30.0 else WHITE

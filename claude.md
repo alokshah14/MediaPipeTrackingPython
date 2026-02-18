@@ -984,3 +984,13 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **main.py**: `--simulation` now always enables free-play menus; uses Leap input if device present, keyboard otherwise.
+
+### 2026-02-18 (cont.)
+
+#### Angle Test 3D Overlays (PIP + MCP)
+**User Request**: Show 3D hand rendering with points/lines for both PIP and MCP angles; allow selecting a finger while still showing values for all.
+
+**Changes**:
+- **ui/hand_renderer_3d.py**: Added angle debug overlay drawing with colored line segments and joint points for MCP (metacarpal+proximal) and PIP (proximal+intermediate).
+- **ui/game_ui.py**: Angle test table now highlights selected finger row.
+- **main.py**: Added left/right (A/D) finger selection for angle test; passes selected finger to 3D overlay.

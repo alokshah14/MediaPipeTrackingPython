@@ -156,6 +156,7 @@ class FingerInvaders:
         # Angle test state
         self.angle_test_baseline_angles = {name: None for name in FINGER_NAMES}
         self.angle_test_baseline_source = "none"
+        self.angle_test_selected_index = 0
 
         # Keyboard simulation mapping (for testing without Leap Motion)
         self.key_finger_map = {
@@ -509,6 +510,10 @@ class FingerInvaders:
                 self.hand_tracker.set_angle_calculation_mode(new_mode)
             elif event.key == pygame.K_r:
                 self._reset_angle_test_baseline()
+            elif event.key in (pygame.K_LEFT, pygame.K_a):
+                self.angle_test_selected_index = (self.angle_test_selected_index - 1) % len(FINGER_NAMES)
+            elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                self.angle_test_selected_index = (self.angle_test_selected_index + 1) % len(FINGER_NAMES)
 
         # Keyboard simulation for finger presses (in simulation mode)
         elif state in (GameState.PLAYING, GameState.CALIBRATING, GameState.FINGER_INVADERS,
@@ -1597,19 +1602,27 @@ class FingerInvaders:
             else:
                 deltas[name] = finger_angles.get(name, 0.0) - baseline
 
+        selected_finger = FINGER_NAMES[self.angle_test_selected_index]
+
         self.menu_ui.draw_angle_test_menu(
             angle_mode=self.hand_tracker.get_angle_calculation_mode(),
             baseline_source=self.angle_test_baseline_source,
             angles=finger_angles,
             baselines=baselines,
             deltas=deltas,
-            calibration_mode=self.calibration.get_angle_calculation_mode()
+            calibration_mode=self.calibration.get_angle_calculation_mode(),
+            selected_finger=selected_finger
         )
 
         finger_states = self.hand_tracker.get_all_finger_states()
         self.old_hand_renderer.set_finger_angles(finger_angles, baselines)
         self.old_hand_renderer._draw_finger_labels()
         self.old_hand_renderer._draw_angle_bars(finger_states)
+
+        # Update 3D hand debug overlay
+        hand_data = self.hand_tracker.get_display_data()
+        self.hand_renderer.set_hand_data(hand_data, finger_states)
+        self.hand_renderer.set_angle_debug(selected_finger, show_pip=True, show_mcp=True)
 
     def _render_waiting_for_hands(self):
         """Render the waiting for hands screen."""
