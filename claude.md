@@ -1002,3 +1002,12 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **ui/game_ui.py**: Angle test screen now only fills the game area and leaves the hand area transparent so 3D rendering shows through.
+
+### 2026-02-18 (cont.)
+
+#### Angle Test 3D Render Visibility
+**User Report**: 3D hands still not visible in angle test.
+
+**Fix**:
+- **main.py**: Skip drawing the 2D hand overlay in ANGLE_TEST state so 3D hands are not covered.
+- **main.py**: Removed old 2D hand labels/bars from angle test render.

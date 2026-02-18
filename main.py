@@ -372,7 +372,8 @@ class FingerInvaders:
 
                 # Overlay 2D Pygame surface for game area and then hand area
                 self._draw_2d_overlay_with_opengl("game")
-                self._draw_2d_overlay_with_opengl("hand")
+                if self.game_engine.state != GameState.ANGLE_TEST:
+                    self._draw_2d_overlay_with_opengl("hand")
 
                 pygame.display.flip()
         except Exception as e:
@@ -1615,10 +1616,6 @@ class FingerInvaders:
         )
 
         finger_states = self.hand_tracker.get_all_finger_states()
-        self.old_hand_renderer.set_finger_angles(finger_angles, baselines)
-        self.old_hand_renderer._draw_finger_labels()
-        self.old_hand_renderer._draw_angle_bars(finger_states)
-
         # Update 3D hand debug overlay
         hand_data = self.hand_tracker.get_display_data()
         self.hand_renderer.set_hand_data(hand_data, finger_states)
