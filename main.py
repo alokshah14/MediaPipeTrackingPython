@@ -170,6 +170,7 @@ class FingerInvaders:
 
         # Hand position warning state
         self.hands_not_ready_message_time = 0
+        self.last_multi_press_warning_time = 0
 
         # Resume countdown (hands must be in position for this many seconds before auto-resume)
         self.resume_countdown = None  # None = not counting, float = seconds remaining
@@ -709,6 +710,20 @@ class FingerInvaders:
         self.resume_countdown = None
         self.pause_start_tick = 0
 
+    def _maybe_trigger_multi_press_warning(self):
+        """Show warning when multiple fingers are pressed together."""
+        if not self.hand_tracker.multi_press_detected:
+            return
+        now = pygame.time.get_ticks()
+        from game.constants import MULTI_PRESS_WARNING_COOLDOWN_MS, MULTI_PRESS_REPEAT_WINDOW_MS
+        if now - self.last_multi_press_warning_time < MULTI_PRESS_WARNING_COOLDOWN_MS:
+            return
+        message = "Two fingers pressed together"
+        if now - self.last_multi_press_warning_time <= MULTI_PRESS_REPEAT_WINDOW_MS:
+            message = "Press one finger at a time"
+        self.last_multi_press_warning_time = now
+        self.game_ui.trigger_multi_press_warning(message)
+
     def _adjust_game_clocks(self, pause_duration_ms: int):
         """Shift game session_start_time forward so paused time is excluded from elapsed_time."""
         # Adjust main session start time
@@ -894,6 +909,7 @@ class FingerInvaders:
                 finger_angles,
                 self.calibration.calibration_data.get('baseline_angles', {})
             )
+            self._maybe_trigger_multi_press_warning()
 
         elif state == GameState.EGG_CATCHER:
             events = self.egg_catcher_game.update(dt)
@@ -967,6 +983,7 @@ class FingerInvaders:
             else:
                 if self._update_segment_progress(current_game_mode, current_score, dt_ms):
                     return
+            self._maybe_trigger_multi_press_warning()
 
         elif state == GameState.PING_PONG:
             events = self.ping_pong_game.update(dt)
@@ -1040,6 +1057,7 @@ class FingerInvaders:
             else:
                 if self._update_segment_progress(current_game_mode, current_score, dt_ms):
                     return
+            self._maybe_trigger_multi_press_warning()
 
         elif state == GameState.CALIBRATING:
             self._update_calibration(dt)
@@ -1331,6 +1349,7 @@ class FingerInvaders:
             game_state['streak'],
             speed_text=f"x{speed_mult:.1f}"
         )
+        self.game_ui.draw_multi_press_warning()
 
         # Update 3D hand data (actual drawing happens in main loop after 2D overlay)
         hand_data = self.hand_tracker.get_display_data()
@@ -1364,6 +1383,7 @@ class FingerInvaders:
             f"x{game_state['difficulty']:.1f}",
             speed_text=f"x{game_state['difficulty']:.1f}"
         )
+        self.game_ui.draw_multi_press_warning()
         
         # Update 3D hand data (actual drawing happens in main loop after 2D overlay)
         hand_data = self.hand_tracker.get_display_data()
@@ -1401,6 +1421,7 @@ class FingerInvaders:
             f"x{game_state['rally_count']}",
             speed_text=f"{speed_pct * 100:.0f}%"
         )
+        self.game_ui.draw_multi_press_warning()
 
         # Update 3D hand data (actual drawing happens in main loop after 2D overlay)
         hand_data = self.hand_tracker.get_display_data()

@@ -84,6 +84,12 @@ CALIBRATION_FILE = 'calibration_data.json'
 FINGER_PRESS_THRESHOLD = 0.3  # Default threshold (calibration will override)
 FINGER_PRESS_ANGLE_THRESHOLD = 30  # Degrees of flexion to consider finger pressed
 PRESS_DEBOUNCE_TIME = 200  # ms between registered presses
+MULTI_PRESS_WINDOW_MS = 120  # ms window to treat two presses as simultaneous
+
+# Multi-press warning UI
+MULTI_PRESS_WARNING_DURATION_MS = 600
+MULTI_PRESS_WARNING_COOLDOWN_MS = 800
+MULTI_PRESS_REPEAT_WINDOW_MS = 1500
 
 # Explosion settings
 EXPLOSION_DURATION = 500  # ms

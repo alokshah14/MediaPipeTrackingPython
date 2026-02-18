@@ -6,7 +6,7 @@ from collections import deque
 from typing import Dict, List, Optional, Tuple
 from game.constants import (
     FINGER_NAMES, PRESS_DEBOUNCE_TIME, FINGER_PRESS_THRESHOLD,
-    FINGER_PRESS_ANGLE_THRESHOLD
+    FINGER_PRESS_ANGLE_THRESHOLD, MULTI_PRESS_WINDOW_MS
 )
 
 # Buffer configuration
@@ -69,6 +69,9 @@ class HandTracker:
         # Press detection
         self.last_press_time = {name: 0 for name in FINGER_NAMES}
         self.press_events = []  # Queue of recent press events
+        self.pending_press: Optional[Tuple[str, float]] = None
+        self.multi_press_detected = False
+        self.last_multi_press_time = 0
 
         # Rolling buffer for kinematic analysis (1 second of frames)
         self.frame_buffer: deque = deque(maxlen=int(BUFFER_DURATION_MS / FRAME_SAMPLE_RATE_MS))
@@ -111,6 +114,8 @@ class HandTracker:
 
         # Update finger positions and detect presses
         new_presses = []
+        candidate_presses: List[Tuple[str, float]] = []
+        self.multi_press_detected = False
 
         for hand_type in ['left', 'right']:
             hand = hands_data.get(hand_type)
@@ -154,13 +159,53 @@ class HandTracker:
                 if is_pressed and not was_pressed:
                     time_since_last = current_time - self.last_press_time[full_name]
                     if time_since_last >= PRESS_DEBOUNCE_TIME:
-                        new_presses.append(full_name)
-                        self.last_press_time[full_name] = current_time
-                        self.last_press_timestamp_ms[full_name] = current_time
+                        candidate_presses.append((full_name, current_time))
 
                 self.finger_states[full_name] = is_pressed
 
-        self.press_events = new_presses
+        # Resolve candidate presses with multi-press suppression window
+        if len(candidate_presses) > 1:
+            self.multi_press_detected = True
+            self.last_multi_press_time = current_time
+            self.pending_press = None
+            self.press_events = []
+        elif len(candidate_presses) == 1:
+            finger, press_time = candidate_presses[0]
+            if self.pending_press:
+                pending_finger, pending_time = self.pending_press
+                if finger != pending_finger and (press_time - pending_time) <= MULTI_PRESS_WINDOW_MS:
+                    # Two different fingers within window: suppress both
+                    self.multi_press_detected = True
+                    self.last_multi_press_time = current_time
+                    self.pending_press = None
+                    self.press_events = []
+                else:
+                    # Emit pending if it's aged out, and queue current
+                    if (press_time - pending_time) >= MULTI_PRESS_WINDOW_MS:
+                        if self.finger_states.get(pending_finger, False):
+                            new_presses.append(pending_finger)
+                            self.last_press_time[pending_finger] = pending_time
+                            self.last_press_timestamp_ms[pending_finger] = pending_time
+                        self.pending_press = (finger, press_time)
+                    else:
+                        # Same finger or within window but same finger: keep earliest
+                        if finger == pending_finger:
+                            self.pending_press = (finger, press_time)
+            else:
+                self.pending_press = (finger, press_time)
+
+            self.press_events = new_presses
+        else:
+            # No new candidate presses; emit pending if window elapsed
+            if self.pending_press:
+                pending_finger, pending_time = self.pending_press
+                if (current_time - pending_time) >= MULTI_PRESS_WINDOW_MS:
+                    if self.finger_states.get(pending_finger, False):
+                        new_presses.append(pending_finger)
+                        self.last_press_time[pending_finger] = pending_time
+                        self.last_press_timestamp_ms[pending_finger] = pending_time
+                    self.pending_press = None
+            self.press_events = new_presses
 
         # Add frame to rolling buffer for kinematic analysis
         if current_time - self.last_buffer_sample_time >= FRAME_SAMPLE_RATE_MS:

@@ -871,3 +871,23 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **main.py**: Prevent double-counting segment playtime by only adding the untracked delta on session end.
+
+### 2026-02-18 (cont.)
+
+#### Multi-Press Suppression + Warning
+**User Request**: If two fingers are pressed together, do not fire/act; show a warning and define the timing window.
+
+**Implementation**:
+1. **game/constants.py**:
+   - Added `MULTI_PRESS_WINDOW_MS = 120` and warning timing constants.
+
+2. **tracking/hand_tracker.py**:
+   - Added a pending-press buffer so a press is only emitted after the window passes with no second finger.
+   - If two distinct presses occur within `MULTI_PRESS_WINDOW_MS`, both are suppressed and a multi-press flag is raised.
+
+3. **ui/game_ui.py**:
+   - Added red flash + message overlay for multi-press warnings.
+
+4. **main.py**:
+   - Triggers warnings during gameplay when multi-press is detected.
+   - Draws warning overlay in all games.

@@ -6,7 +6,8 @@ from typing import Dict, List, Optional
 from game.constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, GAME_AREA_TOP, GAME_AREA_BOTTOM,
     STARTING_LIVES, FINGER_NAMES, FINGER_DISPLAY_NAMES, LANE_WIDTH,
-    DIFFICULTY_LEVELS, GameMode, ALL_GAME_MODES
+    DIFFICULTY_LEVELS, GameMode, ALL_GAME_MODES,
+    MULTI_PRESS_WARNING_DURATION_MS
 )
 from .colors import (
     WHITE, BLACK, RED, GREEN, YELLOW, GRAY, DARK_GRAY,
@@ -38,6 +39,8 @@ class GameUI:
         self.score_pulse = 0
         self.lives_flash = 0
         self.explosions = []
+        self.multi_press_warning_until = 0
+        self.multi_press_warning_message = ""
 
     def update(self, dt: float = 1.0):
         """Update UI animations."""
@@ -53,6 +56,31 @@ class GameUI:
         self.explosions = [e for e in self.explosions if e['lifetime'] > 0]
         for explosion in self.explosions:
             explosion['lifetime'] -= dt * 16  # roughly 60fps
+
+    def trigger_multi_press_warning(self, message: str, duration_ms: int = MULTI_PRESS_WARNING_DURATION_MS):
+        """Trigger a multi-press warning overlay."""
+        self.multi_press_warning_until = pygame.time.get_ticks() + duration_ms
+        self.multi_press_warning_message = message
+
+    def draw_multi_press_warning(self):
+        """Draw a red flash + warning text when multi-press detected."""
+        if self.multi_press_warning_until <= 0:
+            return
+        remaining = self.multi_press_warning_until - pygame.time.get_ticks()
+        if remaining <= 0:
+            self.multi_press_warning_until = 0
+            return
+
+        # Red overlay on game area
+        alpha = min(160, int(remaining / MULTI_PRESS_WARNING_DURATION_MS * 160))
+        overlay = pygame.Surface((WINDOW_WIDTH, GAME_AREA_BOTTOM), pygame.SRCALPHA)
+        overlay.fill((180, 40, 40, alpha))
+        self.surface.blit(overlay, (0, 0))
+
+        # Warning text
+        text = self.fonts['medium'].render(self.multi_press_warning_message, True, WHITE)
+        rect = text.get_rect(center=(WINDOW_WIDTH // 2, GAME_AREA_TOP + 40))
+        self.surface.blit(text, rect)
 
     def draw_background(self):
         """Draw the game background (only in game area, leave hand area for 3D)."""
