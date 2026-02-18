@@ -196,11 +196,6 @@ class OpenGLHandRenderer:
         # Just apply a small rotation to view hand from a good angle
         glRotatef(-60, 1, 0, 0)  # Tilt hand to see it from above
 
-        # Draw palm (simplified as a sphere at origin)
-        glColor3f(*tuple(c / 255.0 for c in HAND_COLOR))
-        gluSphere(self.quadric, PALM_RADIUS * scale_factor * 0.8, 16, 16)
-
-
         # Draw fingers and bones
         for finger_name, finger_data in hand_model.get('fingers', {}).items():
             if not finger_data or not finger_data.get('valid', False):
@@ -323,23 +318,27 @@ class OpenGLHandRenderer:
                 -(pos[2] - palm_pos[2]) * scale_factor,
             ]
 
-        def draw_segment(start, end, color, width=3.0):
+        def draw_segment(start, end, color, width=4.0):
             glDisable(GL_LIGHTING)
+            glDisable(GL_DEPTH_TEST)
             glLineWidth(width)
             glColor3f(*color)
             glBegin(GL_LINES)
             glVertex3f(start[0], start[1], start[2])
             glVertex3f(end[0], end[1], end[2])
             glEnd()
+            glEnable(GL_DEPTH_TEST)
             glEnable(GL_LIGHTING)
 
-        def draw_point(pos, color, radius=3.5):
+        def draw_point(pos, color, radius=4.5):
             glDisable(GL_LIGHTING)
+            glDisable(GL_DEPTH_TEST)
             glPushMatrix()
             glTranslatef(pos[0], pos[1], pos[2])
             glColor3f(*color)
             gluSphere(self.quadric, radius, 8, 8)
             glPopMatrix()
+            glEnable(GL_DEPTH_TEST)
             glEnable(GL_LIGHTING)
 
         bones = finger_data.get('bones', {})

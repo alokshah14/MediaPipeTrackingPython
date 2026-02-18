@@ -1011,3 +1011,12 @@ analyzer.animate_session(save_path='session_replay.gif')
 **Fix**:
 - **main.py**: Skip drawing the 2D hand overlay in ANGLE_TEST state so 3D hands are not covered.
 - **main.py**: Removed old 2D hand labels/bars from angle test render.
+
+### 2026-02-18 (cont.)
+
+#### 3D Angle Overlay Visibility + Palm Sphere Removal
+**User Request**: Show which angles are measured in 3D; remove circular palm sphere.
+
+**Changes**:
+- **ui/hand_renderer_3d.py**: Removed palm sphere; made angle debug lines/points render without depth testing and with thicker sizes for visibility.
+- **ui/game_ui.py**: Added legend explaining MCP/PIP overlay colors on angle test screen.

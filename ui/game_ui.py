@@ -716,6 +716,11 @@ class MenuUI:
             warn = "Warning: Calibration baseline was captured with a different angle mode."
             self.surface.blit(self.fonts['small'].render(warn, True, (255, 180, 100)), (80, 220))
 
+        # Legend for 3D angle overlays
+        legend_y = 230
+        legend = "3D overlay: MCP (blue/green) | PIP (pink/orange)"
+        self.surface.blit(self.fonts['small'].render(legend, True, (160, 200, 220)), (80, legend_y))
+
         # Table headers
         header_y = 260
         headers = ["FINGER", "ANGLE", "BASELINE", "DELTA"]
