@@ -104,6 +104,7 @@ class GameState(Enum):
     MENU = 'menu'
     CONNECT_DEVICE = 'connect_device'
     CALIBRATION_MENU = 'calibration_menu'
+    ANGLE_TEST = 'angle_test'
     CALIBRATING = 'calibrating'
     WAITING_FOR_HANDS = 'waiting_for_hands'  # Pre-game: waiting for hands in position
     FINGER_INVADERS = 'finger_invaders' # Original game mode

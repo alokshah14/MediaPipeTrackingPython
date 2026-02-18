@@ -663,11 +663,67 @@ class MenuUI:
                 self.surface.blit(text, (100, y))
             y += 28
 
+    def draw_angle_test_menu(self, angle_mode: str, baseline_source: str,
+                             angles: Dict[str, float], baselines: Dict[str, Optional[float]],
+                             deltas: Dict[str, float], calibration_mode: Optional[str] = None):
+        """Draw the angle test screen."""
+        self.surface.fill(BACKGROUND)
+
+        title = self.fonts['title'].render("ANGLE TEST", True, WHITE)
+        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 80))
+        self.surface.blit(title, title_rect)
+
+        mode_text = f"Angle Mode: {angle_mode.upper()} (press T to toggle)"
+        mode_color = YELLOW if angle_mode == "pip" else (120, 200, 255)
+        self.surface.blit(self.fonts['medium'].render(mode_text, True, mode_color), (80, 150))
+
+        baseline_label = baseline_source.replace("_", " ").title()
+        baseline_text = f"Baseline Source: {baseline_label} (SPACE = capture, R = reset)"
+        self.surface.blit(self.fonts['small'].render(baseline_text, True, GRAY), (80, 190))
+
+        if calibration_mode and calibration_mode != angle_mode and baseline_source == "calibration":
+            warn = "Warning: Calibration baseline was captured with a different angle mode."
+            self.surface.blit(self.fonts['small'].render(warn, True, (255, 180, 100)), (80, 220))
+
+        # Table headers
+        header_y = 260
+        headers = ["FINGER", "ANGLE", "BASELINE", "DELTA"]
+        x_positions = [120, 360, 520, 680]
+        for header, x in zip(headers, x_positions):
+            text = self.fonts['small'].render(header, True, (150, 150, 200))
+            self.surface.blit(text, (x, header_y))
+
+        pygame.draw.line(self.surface, (90, 90, 130), (80, header_y + 28), (WINDOW_WIDTH - 80, header_y + 28), 2)
+
+        # Table rows
+        row_y = header_y + 40
+        for finger_name, display in zip(FINGER_NAMES, FINGER_DISPLAY_NAMES):
+            angle = angles.get(finger_name, 0.0)
+            baseline = baselines.get(finger_name)
+            delta = deltas.get(finger_name, 0.0)
+
+            base_text = f"{baseline:.1f}" if baseline is not None else "--"
+            delta_text = f"{delta:.1f}"
+
+            self.surface.blit(self.fonts['small'].render(display, True, WHITE), (x_positions[0], row_y))
+            self.surface.blit(self.fonts['small'].render(f"{angle:.1f}", True, WHITE), (x_positions[1], row_y))
+            self.surface.blit(self.fonts['small'].render(base_text, True, GRAY), (x_positions[2], row_y))
+            delta_color = (100, 255, 100) if delta >= 30.0 else WHITE
+            self.surface.blit(self.fonts['small'].render(delta_text, True, delta_color), (x_positions[3], row_y))
+
+            row_y += 26
+
+        # Footer instructions
+        footer = "Press ESC to return to menu"
+        footer_text = self.fonts['small'].render(footer, True, (100, 100, 150))
+        footer_rect = footer_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 40))
+        self.surface.blit(footer_text, footer_rect)
+
     def move_selection(self, direction: int, daily_session_locked: bool, has_calibration: bool,
                        current_segment_info: Dict, playable_games: List[GameMode]):
         """Move menu selection, adjusting for dynamic options based on daily session state."""
         
-        menu_options = ["Calibrate"]
+        menu_options = ["Calibrate", "Angle Test"]
         if not daily_session_locked:
             if current_segment_info["segment_number"] == 5:
                 # All games available for segment 5

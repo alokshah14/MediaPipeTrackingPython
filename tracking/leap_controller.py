@@ -109,6 +109,12 @@ class LeapController:
                 tip = digit.distal.next_joint
 
                 # Extract bone directions for angle calculation
+                # Metacarpal bone direction
+                metacarpal = digit.metacarpal
+                metacarpal_dir = (metacarpal.next_joint.x - metacarpal.prev_joint.x,
+                                  metacarpal.next_joint.y - metacarpal.prev_joint.y,
+                                  metacarpal.next_joint.z - metacarpal.prev_joint.z)
+
                 # Proximal bone direction
                 proximal = digit.proximal
                 proximal_dir = (proximal.next_joint.x - proximal.prev_joint.x,
@@ -138,6 +144,7 @@ class LeapController:
                 fingers[finger_name] = {
                     'tip_position': (tip.x, tip.y, tip.z),
                     'extended': digit.is_extended,
+                    'metacarpal_direction': metacarpal_dir,
                     'proximal_direction': proximal_dir,
                     'intermediate_direction': intermediate_dir,
                     'bones': bones,
@@ -262,6 +269,7 @@ class SimulatedLeapController(LeapController):
 
                 # Simulate bone directions - when pressed, angle between bones is ~45 degrees
                 # When relaxed, bones are roughly aligned (angle ~0)
+                metacarpal_dir = (0.0, 1.0, 0.0)
                 if is_pressed:
                     proximal_dir = (0.0, 1.0, 0.0)
                     angle_rad = math.radians(45)
@@ -302,6 +310,7 @@ class SimulatedLeapController(LeapController):
                 fingers[finger_name] = {
                     'tip_position': tip_pos,
                     'extended': not is_pressed,
+                    'metacarpal_direction': metacarpal_dir,
                     'proximal_direction': proximal_dir,
                     'intermediate_direction': intermediate_dir,
                     'bones': bones,

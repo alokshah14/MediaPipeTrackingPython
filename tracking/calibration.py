@@ -29,6 +29,7 @@ class CalibrationManager:
         # Angle-based thresholds
         self.angle_thresholds = {name: FINGER_PRESS_ANGLE_THRESHOLD for name in FINGER_NAMES}
         self.baseline_angles = {name: None for name in FINGER_NAMES}
+        self.angle_calculation_mode: Optional[str] = None
 
         # Calibration process state
         self.calibrating = False
@@ -81,6 +82,7 @@ class CalibrationManager:
             self.thresholds = data.get('thresholds', self.thresholds)
             self.angle_thresholds = data.get('angle_thresholds', self.angle_thresholds)
             self.baseline_angles = data.get('baseline_angles', self.baseline_angles)
+            self.angle_calculation_mode = data.get('angle_calculation_mode', self.angle_calculation_mode)
             self.calibrated_palm_positions = data.get('palm_positions', {'left': None, 'right': None})
             self.is_calibrated = True
             print("Loaded existing calibration data.")
@@ -96,6 +98,7 @@ class CalibrationManager:
             'thresholds': self.thresholds,
             'angle_thresholds': self.angle_thresholds,
             'baseline_angles': self.baseline_angles,
+            'angle_calculation_mode': self.angle_calculation_mode,
             'calibration_data': self.calibration_data,
             'palm_positions': self.calibrated_palm_positions,
             'timestamp': time.time(),
@@ -123,6 +126,14 @@ class CalibrationManager:
     def get_baseline_angle(self, finger_name: str) -> Optional[float]:
         """Get the baseline angle for a specific finger."""
         return self.baseline_angles.get(finger_name)
+
+    def set_angle_calculation_mode(self, mode: Optional[str]):
+        """Store the angle calculation mode used during calibration."""
+        self.angle_calculation_mode = mode
+
+    def get_angle_calculation_mode(self) -> Optional[str]:
+        """Get the angle calculation mode stored with calibration."""
+        return self.angle_calculation_mode
 
     def get_calibrated_palm_positions(self) -> Dict:
         """Get the calibrated palm positions for both hands."""

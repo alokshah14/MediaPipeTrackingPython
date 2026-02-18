@@ -63,6 +63,9 @@ class HandTracker:
         # Baseline angles for calibration (recorded when fingers are relaxed)
         self.baseline_angles = {name: None for name in FINGER_NAMES}
 
+        # Angle calculation mode: 'pip' (proximal-intermediate) or 'mcp' (metacarpal-proximal)
+        self.angle_calculation_mode = "pip"
+
         # Press detection
         self.last_press_time = {name: 0 for name in FINGER_NAMES}
         self.press_events = []  # Queue of recent press events
@@ -126,11 +129,8 @@ class HandTracker:
                 self.finger_relative_y[full_name] = relative_y
 
                 # Calculate finger flexion angle from bone directions
-                if 'proximal_direction' in finger_data and 'intermediate_direction' in finger_data:
-                    angle = self._calculate_flexion_angle(
-                        finger_data['proximal_direction'],
-                        finger_data['intermediate_direction']
-                    )
+                angle = self._calculate_flexion_angle_for_mode(finger_data)
+                if angle is not None:
                     self.finger_angles[full_name] = angle
 
                 # Check for press using ANGLE-based threshold
@@ -378,3 +378,28 @@ class HandTracker:
     def get_all_finger_angles(self) -> Dict[str, float]:
         """Get flexion angles for all fingers."""
         return self.finger_angles.copy()
+
+    def set_angle_calculation_mode(self, mode: str) -> bool:
+        """Set angle calculation mode ('pip' or 'mcp')."""
+        if mode not in ("pip", "mcp"):
+            return False
+        self.angle_calculation_mode = mode
+        return True
+
+    def get_angle_calculation_mode(self) -> str:
+        """Get current angle calculation mode."""
+        return self.angle_calculation_mode
+
+    def _calculate_flexion_angle_for_mode(self, finger_data: Dict) -> Optional[float]:
+        """Calculate flexion angle based on the current mode."""
+        if self.angle_calculation_mode == "mcp":
+            metacarpal = finger_data.get('metacarpal_direction')
+            proximal = finger_data.get('proximal_direction')
+            if metacarpal and proximal:
+                return self._calculate_flexion_angle(metacarpal, proximal)
+            # Fallback to PIP if MCP data missing
+        proximal = finger_data.get('proximal_direction')
+        intermediate = finger_data.get('intermediate_direction')
+        if proximal and intermediate:
+            return self._calculate_flexion_angle(proximal, intermediate)
+        return None

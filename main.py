@@ -101,6 +101,9 @@ class FingerInvaders:
         # Initialize calibration and hand tracking
         self.calibration = CalibrationManager()
         self.hand_tracker = HandTracker(self.leap_controller, self.calibration)
+        stored_angle_mode = self.calibration.get_angle_calculation_mode()
+        if stored_angle_mode:
+            self.hand_tracker.set_angle_calculation_mode(stored_angle_mode)
 
         # Initialize game engine
         self.game_engine = GameEngine(self.hand_tracker, self.calibration)
@@ -142,6 +145,10 @@ class FingerInvaders:
         self.calibration_renderer = CalibrationHandRenderer(self.pygame_2d_surface)
         self.old_hand_renderer = OldHandRenderer(self.pygame_2d_surface) # Keep for angle bars etc.
 
+        # Angle test state
+        self.angle_test_baseline_angles = {name: None for name in FINGER_NAMES}
+        self.angle_test_baseline_source = "none"
+
         # Keyboard simulation mapping (for testing without Leap Motion)
         self.key_finger_map = {
             pygame.K_q: 'left_pinky',
@@ -180,6 +187,30 @@ class FingerInvaders:
     def _has_calibration_for_play(self) -> bool:
         """Return True if gameplay should be allowed without calibration."""
         return self.calibration.has_calibration() or self.allow_play_without_calibration
+
+    def _get_angle_test_baseline(self):
+        """Resolve baseline angles for angle testing."""
+        if any(v is not None for v in self.angle_test_baseline_angles.values()):
+            self.angle_test_baseline_source = "captured"
+            return self.angle_test_baseline_angles
+        calibration_baseline = self.calibration.baseline_angles
+        if any(v is not None for v in calibration_baseline.values()):
+            self.angle_test_baseline_source = "calibration"
+            return calibration_baseline
+        self.angle_test_baseline_source = "none"
+        return {name: None for name in FINGER_NAMES}
+
+    def _capture_angle_test_baseline(self):
+        """Capture current angles as a baseline for angle testing."""
+        self.angle_test_baseline_angles = {
+            name: self.hand_tracker.get_finger_angle(name) for name in FINGER_NAMES
+        }
+        self.angle_test_baseline_source = "captured"
+
+    def _reset_angle_test_baseline(self):
+        """Clear captured baseline so calibration baseline (if any) is used."""
+        self.angle_test_baseline_angles = {name: None for name in FINGER_NAMES}
+        self.angle_test_baseline_source = "none"
 
     def _set_display_mode(self):
         """Set the pygame display mode (windowed or fullscreen)."""
@@ -398,6 +429,8 @@ class FingerInvaders:
                 self.game_engine.state = GameState.MENU
             elif state == GameState.CALIBRATION_MENU:
                 self.game_engine.state = GameState.MENU
+            elif state == GameState.ANGLE_TEST:
+                self.game_engine.state = GameState.MENU
             elif state == GameState.HIGH_SCORES:
                 self.game_engine.state = GameState.MENU
             elif state == GameState.WAITING_FOR_HANDS:
@@ -418,10 +451,13 @@ class FingerInvaders:
                     self.game_engine.resume_game()
             elif state == GameState.CALIBRATION_MENU:
                 self.calibration.start_calibration()
+                self.calibration.set_angle_calculation_mode(self.hand_tracker.get_angle_calculation_mode())
                 self.game_engine.state = GameState.CALIBRATING
             elif state == GameState.CALIBRATING:
                 # Confirm phase transition in calibration
                 self.calibration.confirm_phase_transition()
+            elif state == GameState.ANGLE_TEST:
+                self._capture_angle_test_baseline()
             elif state == GameState.NEW_HIGH_SCORE:
                 # Continue to game over screen
                 self.game_engine.state = GameState.GAME_OVER
@@ -443,6 +479,14 @@ class FingerInvaders:
                 self.menu_ui.move_selection(1, daily_locked, self._has_calibration_for_play(), current_segment_info, playable_games)
             elif event.key == pygame.K_RETURN:
                 self._handle_menu_selection()
+
+        elif state == GameState.ANGLE_TEST:
+            if event.key == pygame.K_t:
+                current_mode = self.hand_tracker.get_angle_calculation_mode()
+                new_mode = "mcp" if current_mode == "pip" else "pip"
+                self.hand_tracker.set_angle_calculation_mode(new_mode)
+            elif event.key == pygame.K_r:
+                self._reset_angle_test_baseline()
 
         # Keyboard simulation for finger presses (in simulation mode)
         elif state in (GameState.PLAYING, GameState.CALIBRATING, GameState.FINGER_INVADERS,
@@ -538,7 +582,7 @@ class FingerInvaders:
 
     def _get_menu_options(self):
         """Build the current main menu options list (strings and GameMode entries)."""
-        menu_options = ["Calibrate"]
+        menu_options = ["Calibrate", "Angle Test"]
 
         if not self.daily_session_manager.is_day_locked():
             current_segment_info = self.daily_session_manager.get_current_segment_info()
@@ -575,6 +619,9 @@ class FingerInvaders:
 
         if selected_option == "Calibrate":
             self.game_engine.state = GameState.CALIBRATION_MENU
+            return
+        if selected_option == "Angle Test":
+            self.game_engine.state = GameState.ANGLE_TEST
             return
 
         if selected_option == "Quit":
@@ -993,8 +1040,12 @@ class FingerInvaders:
         elif state == GameState.CALIBRATING:
             self._update_calibration(dt)
 
-
-
+        elif state == GameState.ANGLE_TEST:
+            self.hand_tracker.update()
+            finger_angles = self.hand_tracker.get_all_finger_angles()
+            baselines = self._get_angle_test_baseline()
+            self.old_hand_renderer.set_finger_angles(finger_angles, baselines)
+            self.old_hand_renderer.show_angle_bars = True
 
 
         elif state == GameState.NEW_HIGH_SCORE:
@@ -1206,6 +1257,9 @@ class FingerInvaders:
 
         elif state == GameState.CALIBRATING:
             self._render_calibration()
+
+        elif state == GameState.ANGLE_TEST:
+            self._render_angle_test()
 
         elif state == GameState.FINGER_INVADERS:
             self._render_finger_invaders()
@@ -1442,6 +1496,32 @@ class FingerInvaders:
                 True, (150, 150, 200)
             )
             self.pygame_2d_surface.blit(sim_text, (WINDOW_WIDTH // 2 - sim_text.get_width() // 2, 80))
+
+    def _render_angle_test(self):
+        """Render the angle test screen."""
+        finger_angles = self.hand_tracker.get_all_finger_angles()
+        baselines = self._get_angle_test_baseline()
+        deltas = {}
+        for name in FINGER_NAMES:
+            baseline = baselines.get(name)
+            if baseline is None:
+                deltas[name] = finger_angles.get(name, 0.0)
+            else:
+                deltas[name] = finger_angles.get(name, 0.0) - baseline
+
+        self.menu_ui.draw_angle_test_menu(
+            angle_mode=self.hand_tracker.get_angle_calculation_mode(),
+            baseline_source=self.angle_test_baseline_source,
+            angles=finger_angles,
+            baselines=baselines,
+            deltas=deltas,
+            calibration_mode=self.calibration.get_angle_calculation_mode()
+        )
+
+        finger_states = self.hand_tracker.get_all_finger_states()
+        self.old_hand_renderer.set_finger_angles(finger_angles, baselines)
+        self.old_hand_renderer._draw_finger_labels()
+        self.old_hand_renderer._draw_angle_bars(finger_states)
 
     def _render_waiting_for_hands(self):
         """Render the waiting for hands screen."""

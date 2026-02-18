@@ -824,3 +824,30 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **`tracking/hand_tracker.py`**: Per-frame dedup in `update()`, `latest_hand_data` caching
 - **`tracking/calibration.py`**: Baseline capture duration reduced from 10s to 5s
 - **`ui/game_ui.py`**: Session timer moved from top-right to bottom-right of screen
+
+### 2026-02-18
+
+#### Angle Test Menu (PIP vs MCP)
+**User Request**: Add a temporary menu to test live angle calculations and allow selecting PIP vs MCP angle mode.
+
+**Implementation**:
+1. **game/constants.py**:
+   - Added `GameState.ANGLE_TEST`.
+
+2. **tracking/leap_controller.py**:
+   - Added `metacarpal_direction` for real and simulated fingers.
+
+3. **tracking/hand_tracker.py**:
+   - Added angle calculation mode (`pip` / `mcp`) with getters/setters.
+   - Angle calculation now uses metacarpal-proximal for MCP mode and proximal-intermediate for PIP mode.
+
+4. **tracking/calibration.py**:
+   - Persist angle calculation mode with calibration data.
+
+5. **ui/game_ui.py**:
+   - Added `draw_angle_test_menu()` with live per-finger angle table and controls.
+
+6. **main.py**:
+   - Added "Angle Test" to main menu.
+   - New angle test state rendering with live angles + baseline/delta readouts.
+   - Controls: `T` toggle PIP/MCP, `SPACE` capture baseline, `R` reset baseline, `ESC` back to menu.
