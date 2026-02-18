@@ -180,6 +180,7 @@ class FingerInvaders:
         # Hand position warning state
         self.hands_not_ready_message_time = 0
         self.last_multi_press_warning_time = 0
+        self.simulation_fallback_start = pygame.time.get_ticks()
 
         # Resume countdown (hands must be in position for this many seconds before auto-resume)
         self.resume_countdown = None  # None = not counting, float = seconds remaining
@@ -848,6 +849,17 @@ class FingerInvaders:
         """Update game state."""
         state = self.game_engine.state
         dt_ms = int(dt * (1000 / FPS)) # Convert dt (normalized to 60fps) to milliseconds
+
+        # If simulation flag is set but Leap isn't producing data, fall back to keyboard
+        if self.simulation_mode_requested and isinstance(self.leap_controller, LeapController):
+            if not self.leap_controller.has_recent_data(max_age=1.5):
+                # Give Leap a brief grace period on launch
+                if pygame.time.get_ticks() - self.simulation_fallback_start > 2000:
+                    print("Leap not tracking hands. Switching to keyboard simulation.")
+                    self.leap_controller = SimulatedLeapController()
+                    self.hand_tracker.leap = self.leap_controller
+                    self.is_test_mode = True
+                    self.simulation_keyboard_only = True
 
         # Handle auto-pause/resume based on hand tracking FIRST
         self._check_and_handle_auto_pause(dt)

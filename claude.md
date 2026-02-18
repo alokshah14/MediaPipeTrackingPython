@@ -1038,3 +1038,11 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **ui/hand_renderer_3d.py**: Show only the current mode (PIP or MCP) with thicker lines/points and a single bold color.
 - **main.py**: Angle debug overlay uses the current mode.
 - **ui/game_ui.py**: Legend updated to match single-mode overlay behavior.
+
+### 2026-02-18 (cont.)
+
+#### Simulation Fallback When Leap Has No Data
+**User Report**: Leap shows connected but no 3D hands; want keyboard simulation when Leap isn't tracking.
+
+**Fix**:
+- **main.py**: If `--simulation` and Leap isn't producing data after a short grace period, automatically switch to keyboard simulation and update the hand tracker.
