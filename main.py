@@ -722,6 +722,7 @@ class FingerInvaders:
         self.hands_not_ready_message_time = 0
         self.resume_countdown = None
         self.pause_start_tick = 0
+        self.hand_tracker.latest_hand_data = {'left': None, 'right': None}
 
     def _maybe_trigger_multi_press_warning(self):
         """Show warning when multiple fingers are pressed together."""
@@ -1275,6 +1276,7 @@ class FingerInvaders:
 
             # Show hand position overlay if calibration exists
             if self.calibration.has_calibration() and not self.is_test_mode:
+                self.hand_tracker.update()
                 hand_data = self.hand_tracker.latest_hand_data # Use hand_tracker's latest data
                 position_status = self.calibration.check_hand_positions(hand_data)
                 calibrated_positions = self.calibration.get_calibrated_palm_positions()

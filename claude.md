@@ -937,3 +937,12 @@ analyzer.animate_session(save_path='session_replay.gif')
 - **tracking/hand_tracker.py**: Added configurable multi-press window (`set_multi_press_window_ms`).
 - **main.py**: Set multi-press window per game (Ping Pong 60ms, Egg Catcher 100ms, others 120ms).
 - **game/egg_catcher.py** / **game/ping_pong.py**: Increased zone shrink/lift scaling so dynamic movement is visibly stronger.
+
+### 2026-02-18 (cont.)
+
+#### Ping Pong Zone Visibility + Menu Hand Status
+**User Report**: Ping Pong zone didn't visibly change; menu showed hands in position when not detected.
+
+**Changes**:
+- **game/ping_pong.py**: Zone scaling now uses rally count as an extra driver with stronger shrink/lift so changes are visible.
+- **main.py**: Menu now refreshes hand data before checking positions; clearing warnings also clears cached hand data.

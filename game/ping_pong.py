@@ -290,9 +290,11 @@ class PingPong:
 
     def get_hit_zone_bounds(self) -> tuple:
         """Get dynamic hit zone bounds based on difficulty."""
-        difficulty = max(1.0, self.difficulty_multiplier)
-        shrink = min(0.6, (difficulty - 1.0) * 0.28)  # up to 60% smaller
-        lift = min(110, int((difficulty - 1.0) * 45))  # move up to 110px
+        # Use rally_count as an additional driver so changes are obvious in play.
+        rally_boost = 1.0 + min(1.5, self.rally_count * 0.04)
+        difficulty = max(1.0, self.difficulty_multiplier, rally_boost)
+        shrink = min(0.65, (difficulty - 1.0) * 0.35)  # up to 65% smaller
+        lift = min(140, int((difficulty - 1.0) * 60))  # move up to 140px
 
         zone_height = max(50, int(HIT_ZONE_BASE_HEIGHT * (1.0 - shrink)))
         zone_bottom = GAME_AREA_BOTTOM - HIT_ZONE_BASE_BOTTOM_OFFSET - lift
