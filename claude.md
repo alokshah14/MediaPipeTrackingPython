@@ -1066,3 +1066,14 @@ analyzer.animate_session(save_path='session_replay.gif')
 
 **Fix**:
 - **main.py**: Ping Pong HUD speed now uses the fastest ball in `self.ping_pong_game.balls`.
+
+### 2026-02-18 (cont.)
+
+#### Ping Pong Progressive Multi-Ball
+**User Request**: Add 2nd ball after a few rallies, 3rd after more; remove extra balls when rallies drop but allow a couple of shots.
+
+**Changes**:
+- **game/ping_pong.py**:
+  - Added thresholds (`SECOND_BALL_RALLY=4`, `THIRD_BALL_RALLY=8`).
+  - Extra balls get a grace period (`EXTRA_BALL_GRACE_MISSES=2`) before removal when rallies drop.
+  - Ball count auto-adjusts up/down based on rally count.

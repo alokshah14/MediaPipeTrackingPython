@@ -22,6 +22,11 @@ from tracking.hand_tracker import HandTracker
 HIT_ZONE_BASE_HEIGHT = 140
 HIT_ZONE_BASE_BOTTOM_OFFSET = 10  # distance above GAME_AREA_BOTTOM
 
+# Multi-ball thresholds
+SECOND_BALL_RALLY = 4
+THIRD_BALL_RALLY = 8
+EXTRA_BALL_GRACE_MISSES = 2
+
 # Time required to complete this game (in seconds)
 REQUIRED_PLAY_TIME = 5 * 60  # 5 minutes
 
@@ -101,7 +106,7 @@ class PingPong:
         self.game_mode = GameMode.PING_PONG
 
         self.score = 0
-        self.balls = [Ball(), Ball()]
+        self.balls = [Ball()]
         self.game_over = False
         self.session_complete = False
 
@@ -151,18 +156,15 @@ class PingPong:
         self.target_finger = None
         now = pygame.time.get_ticks()
         self.ball_states = []
-        for idx, ball in enumerate(self.balls):
+        for ball in self.balls:
             state = {
                 'ball': ball,
                 'in_zone': False,
                 'zone_enter_time_ms': 0,
                 'zone_exit_time_ms': 0,
                 'target_finger': None,
+                'grace_misses_remaining': 0,
             }
-            # Stagger second ball so it arrives a bit later
-            if idx == 1:
-                ball.y = GAME_AREA_TOP - 200
-                ball.appear_time_ms = now
             self.ball_states.append(state)
         self.rally_count = 0
         self.difficulty_multiplier = 1.0
@@ -172,6 +174,11 @@ class PingPong:
             'wrong_hits': 0,
             'misses': 0,
         }
+
+        # Ensure ball count resets to 1
+        self.balls = self.balls[:1]
+        if self.ball_states:
+            self.ball_states = self.ball_states[:1]
 
     def update(self, dt: float) -> Dict:
         """Update game state."""
@@ -200,6 +207,14 @@ class PingPong:
 
         zone_top, zone_bottom = self.get_hit_zone_bounds()
 
+        # Adjust number of balls based on rally count
+        desired_balls = 1
+        if self.rally_count >= THIRD_BALL_RALLY:
+            desired_balls = 3
+        elif self.rally_count >= SECOND_BALL_RALLY:
+            desired_balls = 2
+        self._ensure_ball_count(desired_balls)
+
         active_targets = []
 
         # Update balls
@@ -225,10 +240,19 @@ class PingPong:
                 events['missed_target'] = state.get('target_finger')
                 self.rally_count = 0
                 self._decrease_difficulty()
+                # Apply grace to extra balls so they don't disappear immediately
+                if len(self.ball_states) > 1 and state['grace_misses_remaining'] == 0:
+                    state['grace_misses_remaining'] = EXTRA_BALL_GRACE_MISSES
                 ball.reset()
                 state['in_zone'] = False
                 state['target_finger'] = None
                 state['zone_exit_time_ms'] = pygame.time.get_ticks()
+
+                if len(self.ball_states) > desired_balls:
+                    if state['grace_misses_remaining'] > 0:
+                        state['grace_misses_remaining'] -= 1
+                    if state['grace_misses_remaining'] <= 0 and len(self.ball_states) > desired_balls:
+                        self._remove_ball_state(state)
 
             # If ball bounced back above the zone, clear zone state
             if state['in_zone'] and ball.y + ball.radius < zone_top:
@@ -241,11 +265,11 @@ class PingPong:
         # Check for finger presses
         pressed_fingers = self.hand_tracker.update()
         for finger in pressed_fingers:
-            self._handle_finger_press(finger, events, zone_top, zone_bottom)
+            self._handle_finger_press(finger, events, zone_top, zone_bottom, desired_balls)
 
         return events
 
-    def _handle_finger_press(self, finger: str, events: Dict, zone_top: float, zone_bottom: float):
+    def _handle_finger_press(self, finger: str, events: Dict, zone_top: float, zone_bottom: float, desired_balls: int):
         """Handle a finger press event."""
         press_time_ms = self.hand_tracker.get_press_timestamp(finger)
         eligible_states = []
@@ -309,6 +333,8 @@ class PingPong:
             self.stats['total_hits'] += 1
             self.rally_count = 0
             self._decrease_difficulty()
+            if len(self.ball_states) > desired_balls and state['grace_misses_remaining'] == 0:
+                state['grace_misses_remaining'] = EXTRA_BALL_GRACE_MISSES
 
             events['finger_presses'].append({
                 'finger': finger,
@@ -327,6 +353,41 @@ class PingPong:
     def _decrease_difficulty(self):
         """Decrease difficulty after mistakes."""
         self.difficulty_multiplier = max(0.5, self.difficulty_multiplier - 0.05)
+
+    def _ensure_ball_count(self, desired_count: int):
+        """Add or mark extra balls based on desired count."""
+        current = len(self.ball_states)
+        if current < desired_count:
+            for _ in range(desired_count - current):
+                ball = Ball()
+                ball.reset()
+                # Spawn slightly above so it enters after a moment
+                ball.y = GAME_AREA_TOP - 150
+                ball.appear_time_ms = pygame.time.get_ticks()
+                state = {
+                    'ball': ball,
+                    'in_zone': False,
+                    'zone_enter_time_ms': 0,
+                    'zone_exit_time_ms': 0,
+                    'target_finger': None,
+                    'grace_misses_remaining': 0,
+                }
+                self.balls.append(ball)
+                self.ball_states.append(state)
+        elif current > desired_count:
+            # Mark extra balls for graceful removal
+            extra = current - desired_count
+            for state in self.ball_states[-extra:]:
+                if state['grace_misses_remaining'] == 0:
+                    state['grace_misses_remaining'] = EXTRA_BALL_GRACE_MISSES
+
+    def _remove_ball_state(self, state: dict):
+        """Remove a ball state and its ball."""
+        if state in self.ball_states:
+            self.ball_states.remove(state)
+        ball = state.get('ball')
+        if ball in self.balls:
+            self.balls.remove(ball)
 
     def get_hit_zone_bounds(self) -> tuple:
         """Get dynamic hit zone bounds based on difficulty."""
