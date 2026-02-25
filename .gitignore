@@ -10,3 +10,14 @@ session_logs/
 analysis/*.csv
 data/calibration_data.json
 calibration_data.json
+
+# Build artifacts
+build/
+dist/
+*.spec.lock
+*.egg-info/
+
+# IDE and system files
+.gemini/
+.vscode/
+.idea/
