@@ -12,24 +12,30 @@ except ImportError:
     print("Warning: Leap Motion SDK not found. Running in simulation mode.")
 
 
-class LeapListener(leap.Listener):
-    """Listener for Leap Motion events."""
+if LEAP_AVAILABLE:
+    class LeapListener(leap.Listener):
+        """Listener for Leap Motion events."""
 
-    def __init__(self, controller):
-        """Initialize listener with reference to controller."""
-        self.controller = controller
+        def __init__(self, controller):
+            """Initialize listener with reference to controller."""
+            self.controller = controller
 
-    def on_connection_event(self, event):
-        """Handle connection event."""
-        self.controller._on_connected()
+        def on_connection_event(self, event):
+            """Handle connection event."""
+            self.controller._on_connected()
 
-    def on_device_event(self, event):
-        """Handle device detection event."""
-        self.controller._on_device(event)
+        def on_device_event(self, event):
+            """Handle device detection event."""
+            self.controller._on_device(event)
 
-    def on_tracking_event(self, event):
-        """Handle tracking frame event."""
-        self.controller._on_tracking(event)
+        def on_tracking_event(self, event):
+            """Handle tracking frame event."""
+            self.controller._on_tracking(event)
+else:
+    # Dummy listener for when leap is not available
+    class LeapListener:
+        def __init__(self, controller):
+            pass
 
 
 class LeapController:

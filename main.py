@@ -9,10 +9,23 @@ a specific finger, and players must press the correct finger to destroy it.
 
 import pygame
 import sys
+import os
+
+# PyInstaller bundle handling
+if getattr(sys, 'frozen', False):
+    bundle_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(sys.executable)))
+    # For PyInstaller 6+ COLLECT, check if _internal exists
+    internal_dir = os.path.join(bundle_dir, "_internal")
+    if os.path.isdir(internal_dir):
+        bundle_dir = internal_dir
+    
+    # Set the Leap SDK location to our bundle directory (where we'll bundle leapc_cffi)
+    os.environ["LEAPSDK_INSTALL_LOCATION"] = bundle_dir
+    # Ensure current working directory is bundle dir (to find data/ and other assets)
+    os.chdir(bundle_dir)
 
 import atexit
 import threading
-import os
 import argparse
 from typing import Optional
 
