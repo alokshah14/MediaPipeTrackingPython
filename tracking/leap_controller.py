@@ -4,7 +4,32 @@ import time
 import threading
 from typing import Dict, Tuple
 
+def _maybe_add_leap_paths():
+    """Add likely Leap SDK Python binding paths to sys.path."""
+    import os
+    import sys
+
+    roots = []
+    for env_var in ("LEAPSDK_INSTALL_LOCATION", "LEAP_SDK_PATH"):
+        val = os.environ.get(env_var)
+        if val:
+            roots.append(val)
+
+    candidates = []
+    for root in roots:
+        candidates.extend([
+            os.path.join(root, "leapc_cffi", "python"),
+            os.path.join(root, "leapc_cffi"),
+            os.path.join(root, "python"),
+        ])
+
+    for path in candidates:
+        if os.path.isdir(path) and path not in sys.path:
+            sys.path.insert(0, path)
+
+
 try:
+    _maybe_add_leap_paths()
     import leap
     # Ensure we have the expected Ultraleap API surface.
     LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
