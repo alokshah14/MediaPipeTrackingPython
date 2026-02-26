@@ -58,7 +58,10 @@ def _load_leap_from_sdk():
 
 try:
     _maybe_add_leap_paths()
-    import leap
+    # Prefer loading directly from the SDK bundle to avoid importing a wrong "leap" package.
+    leap = _load_leap_from_sdk()
+    if leap is None:
+        import leap
     # Ensure we have the expected Ultraleap API surface.
     LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
     try:
