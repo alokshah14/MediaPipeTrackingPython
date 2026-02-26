@@ -21,3 +21,6 @@ dist/
 .gemini/
 .vscode/
 .idea/
+
+# Unrelated tools
+pal-mcp-server/

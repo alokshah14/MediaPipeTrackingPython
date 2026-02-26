@@ -28,7 +28,7 @@ jobs:
 
       - name: Configure Ultraleap SDK (optional)
         if: ${{ inputs.sdk_url != '' }}
-        shell: pwsh
+        shell: powershell
         run: |
           $input = "${{ inputs.sdk_url }}"
           if ($input -match '^https?://') {
@@ -48,12 +48,12 @@ jobs:
           }
 
       - name: Build exe
-        shell: pwsh
+        shell: powershell
         run: |
           pyinstaller finger_invaders.spec --noconfirm
 
       - name: Zip artifact
-        shell: pwsh
+        shell: powershell
         run: |
           $src = "dist\FingerInvaders"
           $zip = "FingerInvaders-windows.zip"
