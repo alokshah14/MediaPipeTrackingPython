@@ -26,20 +26,26 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller cffi
 
-      - name: Download Ultraleap SDK (optional)
+      - name: Configure Ultraleap SDK (optional)
         if: ${{ inputs.sdk_url != '' }}
         shell: pwsh
         run: |
-          $sdkZip = "$env:RUNNER_TEMP\leap_sdk.zip"
-          Invoke-WebRequest -Uri "${{ inputs.sdk_url }}" -OutFile $sdkZip
-          $dest = "C:\LeapSDK"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Expand-Archive -Path $sdkZip -DestinationPath $dest -Force
-          $sdkRoot = Get-ChildItem -Path $dest -Recurse -Directory `
-            | Where-Object { Test-Path (Join-Path $_.FullName "leapc_cffi") } `
-            | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $sdkRoot) { throw "Leap SDK root not found after extract." }
-          "LEAP_SDK_PATH=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $input = "${{ inputs.sdk_url }}"
+          if ($input -match '^https?://') {
+            $sdkZip = "$env:RUNNER_TEMP\leap_sdk.zip"
+            Invoke-WebRequest -Uri $input -OutFile $sdkZip
+            $dest = "C:\LeapSDK"
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            Expand-Archive -Path $sdkZip -DestinationPath $dest -Force
+            $sdkRoot = Get-ChildItem -Path $dest -Recurse -Directory `
+              | Where-Object { Test-Path (Join-Path $_.FullName "leapc_cffi") } `
+              | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $sdkRoot) { throw "Leap SDK root not found after extract." }
+            "LEAP_SDK_PATH=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          } else {
+            if (-not (Test-Path $input)) { throw "SDK path not found: $input" }
+            "LEAP_SDK_PATH=$input" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
 
       - name: Build exe
         shell: pwsh
