@@ -26,6 +26,12 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller cffi
 
+      - name: Verify Ultraleap bindings
+        run: |
+          python -m pip install --no-cache-dir --no-build-isolation "git+https://github.com/ultraleap/leapc-python-bindings.git#subdirectory=leapc-python-api"
+          python -c "import importlib.util; spec=importlib.util.find_spec('leap'); print('leap spec:', spec)"
+          python -c "import importlib.util; spec=importlib.util.find_spec('leap'); print('leap locations:', list(spec.submodule_search_locations) if spec else 'NONE')"
+
       - name: Configure Ultraleap SDK (optional)
         if: ${{ inputs.sdk_url != '' }}
         shell: powershell
