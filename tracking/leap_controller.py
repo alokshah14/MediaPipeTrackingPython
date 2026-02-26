@@ -88,8 +88,8 @@ try:
     try:
         import leap as _leap_mod
         leap = _leap_mod
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Failed to import bundled leap module: {e}")
     if leap is None:
         leap = _load_leap_from_sdk()
     if leap is None:
