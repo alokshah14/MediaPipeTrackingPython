@@ -62,26 +62,31 @@ try:
     leap = _load_leap_from_sdk()
     if leap is None:
         import leap
-    # Ensure we have the expected Ultraleap API surface.
-    LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
+
+    def _get_listener_base(module):
+        return getattr(module, "Listener", None) or getattr(module, "EventListener", None)
+
+    listener_base = _get_listener_base(leap)
+    LEAP_AVAILABLE = listener_base is not None and hasattr(leap, "Connection")
     try:
         print(f"Leap module loaded from: {getattr(leap, '__file__', '<builtin>')}")
         print(f"Leap API available: {LEAP_AVAILABLE}")
+        print(f"Leap has Listener: {hasattr(leap, 'Listener')}, EventListener: {hasattr(leap, 'EventListener')}, Connection: {hasattr(leap, 'Connection')}")
+        listener_like = [n for n in dir(leap) if "Listener" in n]
+        if listener_like:
+            print(f"Leap listener-like symbols: {listener_like}")
     except Exception:
         pass
+
     if not LEAP_AVAILABLE:
-        # Try loading directly from the SDK if a wrong "leap" module was found.
-        leap = _load_leap_from_sdk() or leap
-        LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
-        if not LEAP_AVAILABLE:
-            print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
+        print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
 except ImportError:
     LEAP_AVAILABLE = False
     print("Warning: Leap Motion SDK not found. Running in simulation mode.")
 
 
 if LEAP_AVAILABLE:
-    class LeapListener(leap.Listener):
+    class LeapListener(listener_base):
         """Listener for Leap Motion events."""
 
         def __init__(self, controller):
