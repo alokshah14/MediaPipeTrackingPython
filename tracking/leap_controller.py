@@ -55,7 +55,14 @@ def _load_leap_from_sdk():
     candidates = []
     for root in roots:
         candidates.append(os.path.join(root, "leapc_cffi", "leap.py"))
+        candidates.append(os.path.join(root, "leapc_cffi", "leap", "__init__.py"))
         candidates.append(os.path.join(root, "leap.py"))
+        candidates.append(os.path.join(root, "leap", "__init__.py"))
+
+    if candidates:
+        print("Leap SDK candidate files:")
+        for c in candidates:
+            print(f"  {c} {'(exists)' if os.path.isfile(c) else ''}")
 
     for path in candidates:
         if os.path.isfile(path):
@@ -69,6 +76,8 @@ def _load_leap_from_sdk():
                     return module
             except Exception as e:
                 print(f"Failed to load leap.py from {path}: {e}")
+    if roots:
+        print(f"No leap module file found under: {roots}")
     return None
 
 
