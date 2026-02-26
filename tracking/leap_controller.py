@@ -28,13 +28,45 @@ def _maybe_add_leap_paths():
             sys.path.insert(0, path)
 
 
+def _load_leap_from_sdk():
+    """Try to load leap.py directly from the SDK bundle."""
+    import importlib.util
+    import os
+    import sys
+
+    roots = []
+    for env_var in ("LEAPSDK_INSTALL_LOCATION", "LEAP_SDK_PATH"):
+        val = os.environ.get(env_var)
+        if val:
+            roots.append(val)
+
+    candidates = []
+    for root in roots:
+        candidates.append(os.path.join(root, "leapc_cffi", "leap.py"))
+        candidates.append(os.path.join(root, "leap.py"))
+
+    for path in candidates:
+        if os.path.isfile(path):
+            spec = importlib.util.spec_from_file_location("leap", path)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                sys.modules["leap"] = module
+                return module
+    return None
+
+
 try:
     _maybe_add_leap_paths()
     import leap
     # Ensure we have the expected Ultraleap API surface.
     LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
     if not LEAP_AVAILABLE:
-        print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
+        # Try loading directly from the SDK if a wrong "leap" module was found.
+        leap = _load_leap_from_sdk() or leap
+        LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
+        if not LEAP_AVAILABLE:
+            print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
 except ImportError:
     LEAP_AVAILABLE = False
     print("Warning: Leap Motion SDK not found. Running in simulation mode.")
