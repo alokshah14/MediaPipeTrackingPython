@@ -6,7 +6,10 @@ from typing import Dict, Tuple
 
 try:
     import leap
-    LEAP_AVAILABLE = True
+    # Ensure we have the expected Ultraleap API surface.
+    LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
+    if not LEAP_AVAILABLE:
+        print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
 except ImportError:
     LEAP_AVAILABLE = False
     print("Warning: Leap Motion SDK not found. Running in simulation mode.")
