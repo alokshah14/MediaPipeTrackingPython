@@ -83,8 +83,15 @@ def _load_leap_from_sdk():
 
 try:
     _maybe_add_leap_paths()
-    # Prefer loading directly from the SDK bundle to avoid importing a wrong "leap" package.
-    leap = _load_leap_from_sdk()
+    # Prefer the installed bindings (bundled by PyInstaller), then fall back to SDK file.
+    leap = None
+    try:
+        import leap as _leap_mod
+        leap = _leap_mod
+    except Exception:
+        pass
+    if leap is None:
+        leap = _load_leap_from_sdk()
     if leap is None:
         import leap
 

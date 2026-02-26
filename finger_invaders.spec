@@ -48,6 +48,14 @@ datas += collect_data_files('pygame')
 binaries += collect_dynamic_libs('pygame')
 hiddenimports = collect_submodules('pygame')
 
+# Ensure Ultraleap Python bindings are bundled when installed via pip
+try:
+    hiddenimports += collect_submodules('leap')
+    datas += collect_data_files('leap')
+    binaries += collect_dynamic_libs('leap')
+except Exception:
+    pass
+
 a = Analysis(
     ['main.py'],
     pathex=[leap_sdk_path],
