@@ -61,6 +61,11 @@ try:
     import leap
     # Ensure we have the expected Ultraleap API surface.
     LEAP_AVAILABLE = hasattr(leap, "Listener") and hasattr(leap, "Connection")
+    try:
+        print(f"Leap module loaded from: {getattr(leap, '__file__', '<builtin>')}")
+        print(f"Leap API available: {LEAP_AVAILABLE}")
+    except Exception:
+        pass
     if not LEAP_AVAILABLE:
         # Try loading directly from the SDK if a wrong "leap" module was found.
         leap = _load_leap_from_sdk() or leap
