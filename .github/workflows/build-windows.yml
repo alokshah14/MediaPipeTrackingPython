@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows-leap]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
