@@ -58,6 +58,22 @@ jobs:
         run: |
           pyinstaller finger_invaders.spec --noconfirm
 
+      - name: Verify bundled leap package
+        shell: powershell
+        run: |
+          $leapPath = "dist\FingerInvaders\_internal\leap"
+          $cffiPath = "dist\FingerInvaders\_internal\leapc_cffi"
+          if (Test-Path $leapPath) {
+            Write-Host "Found leap package:"; Get-ChildItem -Recurse $leapPath | Select-Object -First 20
+          } else {
+            Write-Host "leap package not found at $leapPath"
+          }
+          if (Test-Path $cffiPath) {
+            Write-Host "Found leapc_cffi:"; Get-ChildItem -Recurse $cffiPath | Select-Object -First 20
+          } else {
+            Write-Host "leapc_cffi not found at $cffiPath"
+          }
+
       - name: Zip artifact
         shell: powershell
         run: |

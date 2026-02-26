@@ -4,7 +4,7 @@ import os
 import sys
 import platform
 import importlib.util
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, collect_all
 
 block_cipher = None
 
@@ -50,20 +50,22 @@ binaries += collect_dynamic_libs('pygame')
 hiddenimports = collect_submodules('pygame')
 
 # Ensure Ultraleap Python bindings are bundled when installed via pip.
-# Avoid importing 'leap' here because it can fail at build time if DLLs are missing/mismatched.
-def _add_package_data(pkg_name):
-    spec = importlib.util.find_spec(pkg_name)
-    if spec and spec.submodule_search_locations:
-        pkg_dir = list(spec.submodule_search_locations)[0]
-        datas.append((pkg_dir, pkg_name))
-        return True
-    if spec and spec.origin and os.path.exists(spec.origin):
-        binaries.append((spec.origin, '.'))
-        return True
-    return False
+# Prefer collect_all to include package data, binaries, and hidden imports without importing the module.
+try:
+    leap_datas, leap_binaries, leap_hidden = collect_all('leap')
+    datas += leap_datas
+    binaries += leap_binaries
+    hiddenimports += leap_hidden
+except Exception:
+    pass
 
-_add_package_data('leap')
-_add_package_data('leapc_cffi')
+try:
+    cffi_datas, cffi_binaries, cffi_hidden = collect_all('leapc_cffi')
+    datas += cffi_datas
+    binaries += cffi_binaries
+    hiddenimports += cffi_hidden
+except Exception:
+    pass
 
 a = Analysis(
     ['main.py'],
