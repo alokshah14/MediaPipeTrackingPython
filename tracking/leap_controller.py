@@ -26,6 +26,18 @@ def _maybe_add_leap_paths():
     for path in candidates:
         if os.path.isdir(path) and path not in sys.path:
             sys.path.insert(0, path)
+            print(f"Added Leap SDK path to sys.path: {path}")
+
+    # Ensure LeapC.dll search path is set when running on Windows
+    if os.name == "nt":
+        for root in roots:
+            leapc_dir = os.path.join(root, "leapc_cffi")
+            if os.path.isdir(leapc_dir):
+                try:
+                    os.add_dll_directory(leapc_dir)
+                    print(f"Added LeapC.dll search path: {leapc_dir}")
+                except Exception as e:
+                    print(f"Failed to add LeapC.dll search path: {leapc_dir} ({e})")
 
 
 def _load_leap_from_sdk():
@@ -47,12 +59,16 @@ def _load_leap_from_sdk():
 
     for path in candidates:
         if os.path.isfile(path):
-            spec = importlib.util.spec_from_file_location("leap", path)
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                sys.modules["leap"] = module
-                return module
+            try:
+                spec = importlib.util.spec_from_file_location("leap", path)
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    sys.modules["leap"] = module
+                    print(f"Loaded leap.py directly from: {path}")
+                    return module
+            except Exception as e:
+                print(f"Failed to load leap.py from {path}: {e}")
     return None
 
 
