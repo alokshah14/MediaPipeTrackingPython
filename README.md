@@ -17,9 +17,6 @@ Missiles descend from the sky, each assigned to a specific finger. Press the cor
 
 ## Installation
 
-- **Windows users**: See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for step-by-step setup from Python files and optional EXE packaging.
-- **Executable build guide**: See [BUILD.md](BUILD.md) for PyInstaller output details.
-
 Quick start:
 
 1. **Install Leap Motion SDK** - Download and install from [Ultraleap](https://developer.leapmotion.com/)
@@ -31,6 +28,48 @@ Quick start:
    ```bash
    python main.py
    ```
+
+## Windows Setup (From Python Files)
+
+Use this when you only have the source files and want to run on Windows.
+
+1. Install Python 3.12 (64-bit) and enable "Add Python to PATH".
+2. Install Ultraleap Gemini SDK and confirm this folder exists:
+   `C:\Program Files\Ultraleap\LeapSDK`
+3. Open PowerShell in the project folder (where `main.py` is), then run:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+4. Run the game:
+
+```powershell
+$env:LEAP_SDK_PATH = "C:\Program Files\Ultraleap\LeapSDK"
+python main.py
+```
+
+5. Optional desktop launcher: create `Run-FingerInvaders.bat` on Desktop:
+
+```bat
+@echo off
+set LEAP_SDK_PATH=C:\Program Files\Ultraleap\LeapSDK
+cd /d "C:\Path\To\LeapTrackingPython"
+call .venv\Scripts\activate.bat
+python main.py
+pause
+```
+
+Replace `C:\Path\To\LeapTrackingPython` with your actual project folder.
+
+If PowerShell blocks activation, run once as Administrator:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
 
 ## Controls
 
