@@ -17,13 +17,16 @@ Missiles descend from the sky, each assigned to a specific finger. Press the cor
 
 ## Installation
 
-1. **Install Leap Motion SDK** - Download and install from [Ultraleap](https://developer.leapmotion.com/)
+- **Windows users**: See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for step-by-step setup from Python files and optional EXE packaging.
+- **Executable build guide**: See [BUILD.md](BUILD.md) for PyInstaller output details.
 
+Quick start:
+
+1. **Install Leap Motion SDK** - Download and install from [Ultraleap](https://developer.leapmotion.com/)
 2. **Install Python dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-
 3. **Run the game**:
    ```bash
    python main.py
