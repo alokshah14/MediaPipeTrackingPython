@@ -18,9 +18,12 @@ class SessionLogger:
         Initialize the session logger.
 
         Args:
-            log_directory: Directory to store session log files
+            log_directory: Base directory to store session log files
         """
-        self.log_directory = self._resolve_log_directory(log_directory)
+        self.base_log_directory = self._resolve_log_directory(log_directory)
+        self.player_name = "Default_Player"
+        self.log_directory = os.path.join(self.base_log_directory, self.player_name)
+        
         self.session_id = None
         self.session_file = None
         self.session_data = None
@@ -28,6 +31,13 @@ class SessionLogger:
 
         # Ensure log directory exists
         os.makedirs(self.log_directory, exist_ok=True)
+
+    def set_player_name(self, player_name: str):
+        """Update the player name and adjust log directory."""
+        if player_name:
+            self.player_name = player_name
+            self.log_directory = os.path.join(self.base_log_directory, self.player_name)
+            os.makedirs(self.log_directory, exist_ok=True)
 
     def _resolve_log_directory(self, log_directory: str) -> str:
         """Resolve log directory relative to repo root when a relative path is used."""
@@ -55,6 +65,7 @@ class SessionLogger:
 
         self.session_data = {
             "session_id": self.session_id,
+            "player_name": self.player_name,
             "start_time": datetime.now().isoformat(),
             "start_timestamp": self.session_start_time,
             "game_mode": game_mode,
@@ -77,7 +88,7 @@ class SessionLogger:
         }
 
         self._save_session()
-        print(f"Session logging started: {self.session_file}")
+        print(f"Session logging started for {self.player_name}: {self.session_file}")
 
     def log_finger_press(
         self,
@@ -91,20 +102,7 @@ class SessionLogger:
         difficulty: str,
         trial_metrics: Optional['TrialMetrics'] = None
     ):
-        """
-        Log a finger press event with full hand tracking data and biomechanical metrics.
-
-        Args:
-            finger_pressed: Name of the finger that was pressed
-            target_finger: Name of the target finger (None if no target)
-            is_correct: Whether the press was correct
-            left_hand_data: Full tracking data for left hand
-            right_hand_data: Full tracking data for right hand
-            score: Current score
-            lives: Current lives
-            difficulty: Current difficulty level
-            trial_metrics: Optional biomechanical metrics from kinematics processor
-        """
+        """Log a finger press event."""
         if not self.session_data:
             return
 
@@ -129,7 +127,6 @@ class SessionLogger:
             }
         }
 
-        # Add biomechanical metrics if available
         if trial_metrics:
             event["biomechanics"] = {
                 "reaction_time_ms": round(trial_metrics.reaction_time_ms, 2),
@@ -147,7 +144,6 @@ class SessionLogger:
 
         self.session_data["events"].append(event)
 
-        # Update summary
         self.session_data["summary"]["total_presses"] += 1
         if is_correct:
             self.session_data["summary"]["correct_presses"] += 1
@@ -158,14 +154,12 @@ class SessionLogger:
         correct = self.session_data["summary"]["correct_presses"]
         self.session_data["summary"]["accuracy"] = round(correct / total * 100, 2)
 
-        # Update biomechanical summary if metrics available
         if trial_metrics:
             if trial_metrics.is_clean_trial:
                 self.session_data["summary"]["clean_trials"] += 1
             if trial_metrics.coupled_keypress:
                 self.session_data["summary"]["coupled_keypresses"] += 1
 
-            # Track MLR and reaction time for averages
             if trial_metrics.motion_leakage_ratio != float('inf'):
                 self.session_data["mlr_values"].append(trial_metrics.motion_leakage_ratio)
                 avg_mlr = sum(self.session_data["mlr_values"]) / len(self.session_data["mlr_values"])
@@ -187,17 +181,7 @@ class SessionLogger:
         lives: int,
         difficulty: str
     ):
-        """
-        Log when a missile reaches the bottom without being shot.
-
-        Args:
-            target_finger: The finger that should have been pressed
-            left_hand_data: Full tracking data for left hand
-            right_hand_data: Full tracking data for right hand
-            score: Current score
-            lives: Current lives
-            difficulty: Current difficulty level
-        """
+        """Log missed missile."""
         if not self.session_data:
             return
 
@@ -222,7 +206,6 @@ class SessionLogger:
 
         self.session_data["events"].append(event)
         self.session_data["summary"]["missiles_missed"] += 1
-
         self._save_session()
 
     def log_hand_position(
@@ -230,13 +213,7 @@ class SessionLogger:
         left_hand_data: Optional[Dict],
         right_hand_data: Optional[Dict]
     ):
-        """
-        Log periodic hand position snapshot (for continuous tracking).
-
-        Args:
-            left_hand_data: Full tracking data for left hand
-            right_hand_data: Full tracking data for right hand
-        """
+        """Log hand position snapshot."""
         if not self.session_data:
             return
 
@@ -252,16 +229,11 @@ class SessionLogger:
                 "right_hand": self._extract_hand_data(right_hand_data),
             }
         }
-
         self.session_data["events"].append(event)
-        # Don't save on every position update to avoid performance issues
-        # Will be saved on next finger press or end session
 
     def _extract_hand_data(self, hand_data: Optional[Dict]) -> Optional[Dict]:
         """Extract relevant tracking data from hand data."""
-        if hand_data is None:
-            return None
-
+        if hand_data is None: return None
         extracted = {
             "palm_position": {
                 "x": round(hand_data["palm_position"][0], 2),
@@ -270,54 +242,30 @@ class SessionLogger:
             },
             "fingers": {}
         }
-
         for finger_name, finger_data in hand_data.get("fingers", {}).items():
             tip_pos = finger_data.get("tip_position", (0, 0, 0))
             extracted["fingers"][finger_name] = {
                 "tip_position": {
-                    "x": round(tip_pos[0], 2),
-                    "y": round(tip_pos[1], 2),
-                    "z": round(tip_pos[2], 2),
+                    "x": round(tip_pos[0], 2), "y": round(tip_pos[1], 2), "z": round(tip_pos[2], 2),
                 },
                 "extended": finger_data.get("extended", False),
             }
-
         return extracted
 
     def end_session(self, final_score: int, final_lives: int, duration_seconds: float = 0):
-        """
-        End the current session and save final data.
-
-        Args:
-            final_score: Final game score
-            final_lives: Remaining lives
-            duration_seconds: The total duration of the session in seconds
-        """
-        if not self.session_data:
-            return
-
-        end_time = time.time()
+        """End session and save final data."""
+        if not self.session_data: return
         self.session_data["end_time"] = datetime.now().isoformat()
-        self.session_data["end_timestamp"] = end_time
+        self.session_data["end_timestamp"] = time.time()
         self.session_data["duration_seconds"] = round(duration_seconds, 2)
         self.session_data["final_score"] = final_score
         self.session_data["final_lives"] = final_lives
-
         self._save_session()
-        print(f"Session ended. Log saved to: {self.session_file}")
-        print(f"  Total presses: {self.session_data['summary']['total_presses']}")
-        print(f"  Accuracy: {self.session_data['summary']['accuracy']}%")
-
-        # Reset for next session
-        self.session_id = None
-        self.session_file = None
         self.session_data = None
 
     def _save_session(self):
         """Save session data to file."""
-        if not self.session_file or not self.session_data:
-            return
-
+        if not self.session_file or not self.session_data: return
         try:
             with open(self.session_file, 'w') as f:
                 json.dump(self.session_data, f, indent=2)
@@ -325,36 +273,27 @@ class SessionLogger:
             print(f"Error saving session log: {e}")
 
     def log_calibration(self, calibration_data: Dict):
-        """
-        Log a standalone calibration event.
-
-        Args:
-            calibration_data: The calibration results to log.
-        """
+        """Log a standalone calibration event."""
         self.session_id = datetime.now().strftime("cal_%Y%m%d_%H%M%S")
         self.session_file = os.path.join(
             self.log_directory,
             f"calibration_{self.session_id}.json"
         )
-        
         data = {
             "session_id": self.session_id,
+            "player_name": self.player_name,
             "timestamp": datetime.now().isoformat(),
             "type": "calibration_only",
             "calibration_data": calibration_data
         }
-        
         try:
             with open(self.session_file, 'w') as f:
                 json.dump(data, f, indent=2)
-            print(f"Calibration log saved: {self.session_file}")
+            print(f"Calibration log saved for {self.player_name}: {self.session_file}")
         except IOError as e:
             print(f"Error saving calibration log: {e}")
-        
-        # Reset for potential next session
         self.session_id = None
         self.session_file = None
 
     def get_session_file(self) -> Optional[str]:
-        """Get the current session file path."""
         return self.session_file
