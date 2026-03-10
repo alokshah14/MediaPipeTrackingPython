@@ -483,6 +483,11 @@ class FingerInvaders:
                 self.calibration.confirm_phase_transition()
             elif state == GameState.ANGLE_TEST:
                 self._capture_angle_test_baseline()
+
+        elif event.key == pygame.K_k:
+            if state == GameState.CALIBRATING:
+                # Lower threshold for current finger
+                self.calibration.lower_current_threshold()
             elif state == GameState.NEW_HIGH_SCORE:
                 # Continue to game over screen
                 self.game_engine.state = GameState.GAME_OVER
@@ -879,6 +884,12 @@ class FingerInvaders:
         if self.game_engine.state == GameState.PAUSED and self.game_engine.pause_reason == "HANDS NOT DETECTED":
             # If auto-paused, skip further game logic updates
             # Only update UI elements that depend on dt outside of game logic
+            
+            # Update hand data for 3D renderer even when paused
+            hand_data = self.hand_tracker.get_display_data()
+            finger_states = self.hand_tracker.get_all_finger_states()
+            self.hand_renderer.set_hand_data(hand_data, finger_states)
+            
             self.game_ui.update(dt)
             self.menu_ui.update(dt)
             self.hand_renderer.update(dt)
@@ -1165,6 +1176,13 @@ class FingerInvaders:
         elif state == GameState.REWARD_DISPLAY:
             pass
 
+        elif state == GameState.WAITING_FOR_HANDS:
+            self.hand_tracker.update()
+            # Update hand data for 3D renderer in waiting screen
+            hand_data = self.hand_tracker.get_display_data()
+            finger_states = self.hand_tracker.get_all_finger_states()
+            self.hand_renderer.set_hand_data(hand_data, finger_states)
+
         # Update UI animations
         self.game_ui.update(dt)
         self.menu_ui.update(dt)
@@ -1195,6 +1213,8 @@ class FingerInvaders:
 
         if not still_calibrating:
             self.game_engine.state = GameState.MENU
+            # Log successful calibration
+            self.session_logger.log_calibration(self.calibration.calibration_data)
 
         # Update calibration renderer
         status = self.calibration.get_calibration_status()
@@ -1375,22 +1395,35 @@ class FingerInvaders:
             self.menu_ui.draw_calibration_menu(self.calibration.has_calibration())
 
         elif state == GameState.CALIBRATING:
+            self.hand_renderer.set_view_mode('center')
+            self.hand_renderer.set_calibrated_hand_data(self.calibration.get_calibrated_hand_models())
             self._render_calibration()
 
         elif state == GameState.ANGLE_TEST:
+            self.hand_renderer.set_view_mode('bottom')
             self._render_angle_test()
 
         elif state == GameState.FINGER_INVADERS:
+            self.hand_renderer.set_view_mode('bottom')
             self._render_finger_invaders()
         elif state == GameState.EGG_CATCHER:
+            self.hand_renderer.set_view_mode('bottom')
             self._render_egg_catcher()
         elif state == GameState.PING_PONG:
+            self.hand_renderer.set_view_mode('bottom')
             self._render_ping_pong()
 
         elif state == GameState.PAUSED:
+            # For paused by hands, we show center view to help repositioning
+            if self.game_engine.pause_reason == "HANDS NOT DETECTED":
+                self.hand_renderer.set_view_mode('center')
+                self.hand_renderer.set_calibrated_hand_data(self.calibration.get_calibrated_hand_models())
+            else:
+                self.hand_renderer.set_view_mode('bottom')
             self._render_paused()
 
         elif state == GameState.GAME_OVER:
+            self.hand_renderer.set_view_mode('bottom')
             self._render_game_over()
 
         elif state == GameState.HIGH_SCORES:
@@ -1406,6 +1439,11 @@ class FingerInvaders:
         elif state == GameState.REWARD_DISPLAY:
             self.menu_ui.draw_reward_notification(self.new_rewards)
 
+        elif state == GameState.WAITING_FOR_HANDS:
+            self.hand_renderer.set_view_mode('center')
+            self.hand_renderer.set_calibrated_hand_data(self.calibration.get_calibrated_hand_models())
+            self._render_waiting_for_hands()
+
         # Always draw the session timer on menus (avoid double time in-game)
         if self.session_start_time > 0 and state in (GameState.MENU, GameState.CALIBRATION_MENU, GameState.WAITING_FOR_HANDS, GameState.CONNECT_DEVICE):
             self.menu_ui.draw_session_timer(self.session_timer)
@@ -1415,12 +1453,12 @@ class FingerInvaders:
             self.menu_ui.draw_simulation_mode_indicator()
 
 
-    def _render_finger_invaders(self):
+    def _render_finger_invaders(self, transparent_bg: bool = False):
         """Render the Finger Invaders game."""
         game_state = self.game_engine.get_game_state()
 
         # Background
-        self.game_ui.draw_background()
+        self.game_ui.draw_background(skip_fill=transparent_bg)
 
         # Lanes
         self.game_ui.draw_lanes(game_state['target_fingers'])
@@ -1465,10 +1503,10 @@ class FingerInvaders:
         self.old_hand_renderer._draw_angle_bars(finger_states)  # Draw angle bars
         self.old_hand_renderer._draw_clean_trial_indicator()  # Draw clean trial indicator
 
-    def _render_egg_catcher(self):
+    def _render_egg_catcher(self, transparent_bg: bool = False):
         """Render the Egg Catcher game."""
         # Background
-        self.game_ui.draw_background()
+        self.game_ui.draw_background(skip_fill=transparent_bg)
 
         self.egg_catcher_game.render(self.pygame_2d_surface)
 
@@ -1499,10 +1537,10 @@ class FingerInvaders:
         self.old_hand_renderer._draw_angle_bars(finger_states)
         self.old_hand_renderer._draw_clean_trial_indicator()
 
-    def _render_ping_pong(self):
+    def _render_ping_pong(self, transparent_bg: bool = False):
         """Render the Ping Pong game."""
         # Background
-        self.game_ui.draw_background()
+        self.game_ui.draw_background(skip_fill=transparent_bg)
 
         self.ping_pong_game.render(self.pygame_2d_surface)
 
@@ -1540,16 +1578,18 @@ class FingerInvaders:
     def _render_paused(self):
         """Render the PAUSED state."""
         current_game_mode = self.game_engine.current_game_mode
+        is_hands_missing = self.game_engine.pause_reason == "HANDS NOT DETECTED"
+
         if current_game_mode == GameMode.FINGER_INVADERS:
-            self._render_finger_invaders()
+            self._render_finger_invaders(transparent_bg=is_hands_missing)
         elif current_game_mode == GameMode.EGG_CATCHER:
-            self._render_egg_catcher()
+            self._render_egg_catcher(transparent_bg=is_hands_missing)
         elif current_game_mode == GameMode.PING_PONG:
-            self._render_ping_pong()
+            self._render_ping_pong(transparent_bg=is_hands_missing)
         self.game_ui.draw_pause_overlay(self.game_engine.pause_reason)
 
         # Show hand position overlay when auto-paused so user can reposition
-        if self.game_engine.pause_reason == "HANDS NOT DETECTED":
+        if is_hands_missing:
             hand_data = self.hand_tracker.latest_hand_data
             position_status = self.calibration.check_hand_positions(hand_data)
             calibrated_positions = self.calibration.get_calibrated_palm_positions()
@@ -1571,15 +1611,16 @@ class FingerInvaders:
     def _render_game_over(self):
         """Render the GAME_OVER state."""
         current_game_mode = self.game_engine.current_game_mode
+        # Use semi-transparent background for game over too
         if current_game_mode == GameMode.FINGER_INVADERS:
-            self._render_finger_invaders()
+            self._render_finger_invaders(transparent_bg=True)
             game_state = self.game_engine.get_game_state()
             self.game_ui.draw_game_over(game_state['score'], game_state['high_score'])
         elif current_game_mode == GameMode.EGG_CATCHER:
-            self._render_egg_catcher()
+            self._render_egg_catcher(transparent_bg=True)
             self.game_ui.draw_game_over(self.egg_catcher_game.score, self.high_score_manager.get_top_score(GameMode.EGG_CATCHER.value) or 0)
         elif current_game_mode == GameMode.PING_PONG:
-            self._render_ping_pong()
+            self._render_ping_pong(transparent_bg=True)
             self.game_ui.draw_game_over(self.ping_pong_game.score, self.high_score_manager.get_top_score(GameMode.PING_PONG.value) or 0)
 
     def _render_high_scores(self):
@@ -1653,8 +1694,8 @@ class FingerInvaders:
 
     def _render_waiting_for_hands(self):
         """Render the waiting for hands screen."""
-        # Dark background
-        self.pygame_2d_surface.fill((20, 20, 40))
+        # Semi-transparent background to let 3D ghost hands show through
+        self.pygame_2d_surface.fill((20, 20, 40, 140))
 
         # Title
         font_title = pygame.font.Font(None, 64)

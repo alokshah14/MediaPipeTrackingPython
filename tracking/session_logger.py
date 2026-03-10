@@ -324,6 +324,37 @@ class SessionLogger:
         except IOError as e:
             print(f"Error saving session log: {e}")
 
+    def log_calibration(self, calibration_data: Dict):
+        """
+        Log a standalone calibration event.
+
+        Args:
+            calibration_data: The calibration results to log.
+        """
+        self.session_id = datetime.now().strftime("cal_%Y%m%d_%H%M%S")
+        self.session_file = os.path.join(
+            self.log_directory,
+            f"calibration_{self.session_id}.json"
+        )
+        
+        data = {
+            "session_id": self.session_id,
+            "timestamp": datetime.now().isoformat(),
+            "type": "calibration_only",
+            "calibration_data": calibration_data
+        }
+        
+        try:
+            with open(self.session_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"Calibration log saved: {self.session_file}")
+        except IOError as e:
+            print(f"Error saving calibration log: {e}")
+        
+        # Reset for potential next session
+        self.session_id = None
+        self.session_file = None
+
     def get_session_file(self) -> Optional[str]:
         """Get the current session file path."""
         return self.session_file

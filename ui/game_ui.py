@@ -82,11 +82,12 @@ class GameUI:
         rect = text.get_rect(center=(WINDOW_WIDTH // 2, GAME_AREA_TOP + 40))
         self.surface.blit(text, rect)
 
-    def draw_background(self):
+    def draw_background(self, skip_fill: bool = False):
         """Draw the game background (only in game area, leave hand area for 3D)."""
-        # Only fill the game area, leave hand area transparent for 3D rendering
-        game_area_rect = pygame.Rect(0, 0, WINDOW_WIDTH, GAME_AREA_BOTTOM)
-        pygame.draw.rect(self.surface, BACKGROUND, game_area_rect)
+        if not skip_fill:
+            # Only fill the game area, leave hand area transparent for 3D rendering
+            game_area_rect = pygame.Rect(0, 0, WINDOW_WIDTH, GAME_AREA_BOTTOM)
+            pygame.draw.rect(self.surface, BACKGROUND, game_area_rect)
 
         # Draw distinct background tints for left vs right sides
         left_tint = pygame.Surface((WINDOW_WIDTH // 2, GAME_AREA_BOTTOM - GAME_AREA_TOP), pygame.SRCALPHA)
@@ -391,9 +392,10 @@ class GameUI:
         Args:
             reason: Text to display (e.g., "PAUSED", "HANDS NOT DETECTED")
         """
-        # Semi-transparent overlay
+        # Semi-transparent overlay - use lighter alpha for hands not detected to see ghost hands
+        alpha = 140 if reason == "HANDS NOT DETECTED" else 180
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
+        overlay.fill((0, 0, 0, alpha))
         self.surface.blit(overlay, (0, 0))
 
         # Pause text
@@ -1119,12 +1121,14 @@ class MenuUI:
                 color = (100, 100, 100)  # Gray - hand not detected
                 status_text = "NOT DETECTED"
 
-            # Draw hand icon (circle representation)
-            pygame.draw.circle(self.surface, color, (hand_x, hand_y), circle_radius, 4 if large else 3)
+            # Skip drawing circles if in large mode (we'll use 3D hands)
+            if not large:
+                # Draw hand icon (circle representation) for compact mode
+                pygame.draw.circle(self.surface, color, (hand_x, hand_y), circle_radius, 3)
 
-            # Fill circle if in position
-            if in_position:
-                pygame.draw.circle(self.surface, (*color[:3], 100), (hand_x, hand_y), circle_radius - 8)
+                # Fill circle if in position
+                if in_position:
+                    pygame.draw.circle(self.surface, (*color[:3], 100), (hand_x, hand_y), circle_radius - 8)
 
             # Draw hand label
             label = font_label.render(f"{hand_type.upper()} HAND", True, color)
