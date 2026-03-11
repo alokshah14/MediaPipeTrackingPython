@@ -4,16 +4,121 @@ import time
 import threading
 from typing import Dict, Tuple
 
+def _maybe_add_leap_paths():
+    """Add likely Leap SDK Python binding paths to sys.path."""
+    import os
+    import sys
+
+    roots = []
+    for env_var in ("LEAPSDK_INSTALL_LOCATION", "LEAP_SDK_PATH"):
+        val = os.environ.get(env_var)
+        if val:
+            roots.append(val)
+
+    candidates = []
+    for root in roots:
+        candidates.extend([
+            os.path.join(root, "leapc_cffi", "python"),
+            os.path.join(root, "leapc_cffi"),
+            os.path.join(root, "python"),
+        ])
+
+    for path in candidates:
+        if os.path.isdir(path) and path not in sys.path:
+            sys.path.insert(0, path)
+            print(f"Added Leap SDK path to sys.path: {path}")
+
+    # Ensure LeapC.dll search path is set when running on Windows
+    if os.name == "nt":
+        for root in roots:
+            leapc_dir = os.path.join(root, "leapc_cffi")
+            if os.path.isdir(leapc_dir):
+                try:
+                    os.add_dll_directory(leapc_dir)
+                    print(f"Added LeapC.dll search path: {leapc_dir}")
+                except Exception as e:
+                    print(f"Failed to add LeapC.dll search path: {leapc_dir} ({e})")
+
+
+def _load_leap_from_sdk():
+    """Try to load leap.py directly from the SDK bundle."""
+    import importlib.util
+    import os
+    import sys
+
+    roots = []
+    for env_var in ("LEAPSDK_INSTALL_LOCATION", "LEAP_SDK_PATH"):
+        val = os.environ.get(env_var)
+        if val:
+            roots.append(val)
+
+    candidates = []
+    for root in roots:
+        candidates.append(os.path.join(root, "leapc_cffi", "leap.py"))
+        candidates.append(os.path.join(root, "leapc_cffi", "leap", "__init__.py"))
+        candidates.append(os.path.join(root, "leap.py"))
+        candidates.append(os.path.join(root, "leap", "__init__.py"))
+
+    if candidates:
+        print("Leap SDK candidate files:")
+        for c in candidates:
+            print(f"  {c} {'(exists)' if os.path.isfile(c) else ''}")
+
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                spec = importlib.util.spec_from_file_location("leap", path)
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    sys.modules["leap"] = module
+                    print(f"Loaded leap.py directly from: {path}")
+                    return module
+            except Exception as e:
+                print(f"Failed to load leap.py from {path}: {e}")
+    if roots:
+        print(f"No leap module file found under: {roots}")
+    return None
+
+
 try:
-    import leap
-    LEAP_AVAILABLE = True
+    _maybe_add_leap_paths()
+    # Prefer the installed bindings (bundled by PyInstaller), then fall back to SDK file.
+    leap = None
+    try:
+        import leap as _leap_mod
+        leap = _leap_mod
+    except Exception as e:
+        print(f"Failed to import bundled leap module: {e}")
+    if leap is None:
+        leap = _load_leap_from_sdk()
+    if leap is None:
+        import leap
+
+    def _get_listener_base(module):
+        return getattr(module, "Listener", None) or getattr(module, "EventListener", None)
+
+    listener_base = _get_listener_base(leap)
+    LEAP_AVAILABLE = listener_base is not None and hasattr(leap, "Connection")
+    try:
+        print(f"Leap module loaded from: {getattr(leap, '__file__', '<builtin>')}")
+        print(f"Leap API available: {LEAP_AVAILABLE}")
+        print(f"Leap has Listener: {hasattr(leap, 'Listener')}, EventListener: {hasattr(leap, 'EventListener')}, Connection: {hasattr(leap, 'Connection')}")
+        listener_like = [n for n in dir(leap) if "Listener" in n]
+        if listener_like:
+            print(f"Leap listener-like symbols: {listener_like}")
+    except Exception:
+        pass
+
+    if not LEAP_AVAILABLE:
+        print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
 except ImportError:
     LEAP_AVAILABLE = False
     print("Warning: Leap Motion SDK not found. Running in simulation mode.")
 
 
 if LEAP_AVAILABLE:
-    class LeapListener(leap.Listener):
+    class LeapListener(listener_base):
         """Listener for Leap Motion events."""
 
         def __init__(self, controller):

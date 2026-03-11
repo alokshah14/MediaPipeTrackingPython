@@ -18,6 +18,12 @@ if getattr(sys, 'frozen', False):
     if os.path.isdir(internal_dir):
         bundle_dir = internal_dir
     os.environ["LEAPSDK_INSTALL_LOCATION"] = bundle_dir
+    # Ensure LeapC.dll is discoverable when bundled under leapc_cffi
+    if os.name == "nt":
+        leapc_dir = os.path.join(bundle_dir, "leapc_cffi")
+        if os.path.isdir(leapc_dir):
+            os.add_dll_directory(leapc_dir)
+    # Ensure current working directory is bundle dir (to find data/ and other assets)
     os.chdir(bundle_dir)
 
 # Initialize pygame
