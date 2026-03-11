@@ -52,6 +52,7 @@ class HandRenderer:
         self.finger_angles = {}
         self.baseline_angles = {}
         self.show_angle_bars = True  # Toggle for angle bar display
+        self.draw_hand_shapes = True  # Toggle for drawing 2D hand shapes (disable to show 3D underneath)
 
         # Clean trial feedback
         self.clean_trial_display_time = 0  # Timestamp when to stop showing
@@ -119,31 +120,33 @@ class HandRenderer:
             hand_data: Dictionary with hand tracking data from HandTracker.get_display_data()
             finger_states: Dictionary mapping finger names to pressed state
         """
-        # Draw background area
-        pygame.draw.rect(
-            self.surface,
-            (20, 20, 40),
-            (0, self.hand_area_top - 10, WINDOW_WIDTH, self.hand_area_height + 20)
-        )
-        pygame.draw.line(
-            self.surface,
-            (60, 60, 100),
-            (0, self.hand_area_top - 10),
-            (WINDOW_WIDTH, self.hand_area_top - 10),
-            2
-        )
+        # Only draw hand area UI when showing 2D hands
+        if self.draw_hand_shapes:
+            # Draw background area
+            pygame.draw.rect(
+                self.surface,
+                (20, 20, 40),
+                (0, self.hand_area_top - 10, WINDOW_WIDTH, self.hand_area_height + 20)
+            )
+            pygame.draw.line(
+                self.surface,
+                (60, 60, 100),
+                (0, self.hand_area_top - 10),
+                (WINDOW_WIDTH, self.hand_area_top - 10),
+                2
+            )
 
-        # Draw label
-        font = pygame.font.Font(None, 28)
-        label = font.render("Hand Tracking", True, (150, 150, 200))
-        self.surface.blit(label, (WINDOW_WIDTH // 2 - label.get_width() // 2, self.hand_area_top - 5))
+            # Draw label
+            font = pygame.font.Font(None, 28)
+            label = font.render("Hand Tracking", True, (150, 150, 200))
+            self.surface.blit(label, (WINDOW_WIDTH // 2 - label.get_width() // 2, self.hand_area_top - 5))
 
-        # Draw each hand
-        self._draw_hand('left', hand_data.get('left'), finger_states, self.left_hand_center)
-        self._draw_hand('right', hand_data.get('right'), finger_states, self.right_hand_center, mirror=True)
+            # Draw each hand
+            self._draw_hand('left', hand_data.get('left'), finger_states, self.left_hand_center)
+            self._draw_hand('right', hand_data.get('right'), finger_states, self.right_hand_center, mirror=True)
 
-        # Draw finger labels
-        self._draw_finger_labels()
+            # Draw finger labels
+            self._draw_finger_labels()
 
         # Draw angle bars if enabled and we have angle data
         if self.show_angle_bars and self.finger_angles:
@@ -295,7 +298,8 @@ class HandRenderer:
         bar_width = 20
         bar_height = 60
         bar_spacing = WINDOW_WIDTH // 10
-        bar_y = self.hand_area_top + 25
+        # Position bars at bottom of game area (above 3D hands)
+        bar_y = GAME_AREA_BOTTOM - bar_height - 10
 
         font = pygame.font.Font(None, 18)
         threshold_angle = 30.0  # The press threshold
