@@ -1,0 +1,81 @@
+name: Build Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Download Ultraleap SDK
+      run: |
+        # Download and extract Ultraleap SDK (community version)
+        $url = "https://warehouse.ultraleap.com/windows/gemini/Ultraleap_Hand_Tracking_Service_Windows_6.16.0.zip"
+        $output = "ultraleap_sdk.zip"
+        Invoke-WebRequest -Uri $url -OutFile $output
+        Expand-Archive -Path $output -DestinationPath "C:\Program Files\Ultraleap"
+        # Verify SDK path
+        if (Test-Path "C:\Program Files\Ultraleap\LeapSDK") {
+          Write-Host "SDK installed successfully"
+        }
+      shell: pwsh
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build executable
+      run: |
+        pyinstaller finger_invaders.spec --noconfirm
+      env:
+        LEAP_SDK_PATH: "C:\\Program Files\\Ultraleap\\LeapSDK"
+
+    - name: Create distribution zip
+      run: |
+        cd dist
+        Compress-Archive -Path FingerInvaders -DestinationPath FingerInvaders-Windows.zip
+      shell: pwsh
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FingerInvaders-Windows
+        path: dist/FingerInvaders-Windows.zip
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/FingerInvaders-Windows.zip
+        body: |
+          ## Finger Invaders - Windows Release
+
+          **Requirements:**
+          - Windows 10/11 (64-bit)
+          - [Ultraleap Hand Tracking Service](https://leap2.ultraleap.com/downloads/)
+
+          **Installation:**
+          1. Download `FingerInvaders-Windows.zip`
+          2. Extract the zip file
+          3. Install Ultraleap Hand Tracking Service (if not already installed)
+          4. Run `FingerInvaders.exe`
+
+          **No Python or Git required!**
+
+          For keyboard simulation mode (no Leap device): run `FingerInvaders.exe --simulation`
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
