@@ -1,0 +1,18 @@
+# Windows-specific requirements with known working versions
+# Use this if requirements.txt gives build errors
+
+# Core dependencies with pre-built Windows wheels
+pygame==2.5.2
+numpy==1.26.4
+PyOpenGL==3.1.7
+PyOpenGL-accelerate==3.1.7
+
+# Leap Motion bindings (install separately, see below)
+# pip install git+https://github.com/ultraleap/leapc-python-bindings.git#subdirectory=leapc-python-api
+
+# For building executables
+pyinstaller==6.3.0
+
+# Analysis tools (optional)
+matplotlib==3.8.3
+pandas==2.2.1
