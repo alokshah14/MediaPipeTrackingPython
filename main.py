@@ -842,6 +842,11 @@ class FingerInvaders:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
     def _draw_2d_overlay_with_opengl(self, area: str = "game"):
+        # Flush any stale GL errors left by the 3D renderer so PyOpenGL's
+        # per-call error checker doesn't mis-attribute them to our texture upload.
+        while glGetError() != GL_NO_ERROR:
+            pass
+
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         glEnable(GL_TEXTURE_2D)
@@ -869,15 +874,15 @@ class FingerInvaders:
         glPushMatrix()
         glLoadIdentity()
         
-        texid, tw, th = self._get_texture(self.pygame_2d_surface)
+        texid, u_max, v_max = self._get_texture(self.pygame_2d_surface)
         glBindTexture(GL_TEXTURE_2D, texid)
         glColor4f(1.0, 1.0, 1.0, 1.0)
-        
+
         glBegin(GL_QUADS)
-        glTexCoord2f(0, 0); glVertex2f(0, 0)
-        glTexCoord2f(1, 0); glVertex2f(self.game_width, 0)
-        glTexCoord2f(1, 1); glVertex2f(self.game_width, self.game_height)
-        glTexCoord2f(0, 1); glVertex2f(0, self.game_height)
+        glTexCoord2f(0, 0);       glVertex2f(0, 0)
+        glTexCoord2f(u_max, 0);   glVertex2f(self.game_width, 0)
+        glTexCoord2f(u_max, v_max); glVertex2f(self.game_width, self.game_height)
+        glTexCoord2f(0, v_max);   glVertex2f(0, self.game_height)
         glEnd()
         
         glDeleteTextures(1, [texid])
@@ -888,14 +893,36 @@ class FingerInvaders:
         glMatrixMode(GL_MODELVIEW)
 
     def _get_texture(self, surface):
-        data = pygame.image.tostring(surface, "RGBA", False)
-        width, height = surface.get_size()
+        import math
+        orig_w, orig_h = surface.get_size()
+
+        # Query GPU limit once and cache it
+        if not hasattr(self, '_gl_max_texture_size'):
+            self._gl_max_texture_size = int(glGetIntegerv(GL_MAX_TEXTURE_SIZE))
+            print(f"GL_MAX_TEXTURE_SIZE: {self._gl_max_texture_size}")
+        max_tex = self._gl_max_texture_size
+
+        def next_pow2(n):
+            return 1 << math.ceil(math.log2(max(n, 1)))
+
+        # Clamp to driver's max texture size
+        tw = min(next_pow2(orig_w), max_tex)
+        th = min(next_pow2(orig_h), max_tex)
+
+        if tw != orig_w or th != orig_h:
+            # Scale surface to fit the texture dimensions exactly
+            scaled = pygame.transform.smoothscale(surface, (tw, th))
+            data = pygame.image.tostring(scaled, "RGBA", False)
+        else:
+            data = pygame.image.tostring(surface, "RGBA", False)
+
         texid = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, texid)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        return texid, width, height
+        # UV always spans 0→1 since surface was scaled to fill the texture exactly
+        return texid, 1.0, 1.0
 
     def _cleanup(self):
         """Clean up resources before exit."""
