@@ -4,15 +4,20 @@ This guide explains the easiest ways to distribute Finger Invaders to Windows us
 
 ---
 
-## ⭐ OPTION 1: GitHub Releases (Recommended - Fully Automated)
+## ⭐ OPTION 1: GitHub Releases (Automated - Simulation Mode)
 
-**Best for:** Sharing with researchers, testers, or public distribution
+**Best for:** Quick testing and keyboard simulation mode
+**Note:** This build doesn't include bundled Leap SDK. For full hand tracking, use Option 2 or 3.
 
 ### How it Works:
 1. Push a version tag to GitHub (e.g., `v1.0.0`)
 2. GitHub Actions automatically builds the Windows executable
 3. A release is created with a downloadable zip file
 4. Users download and run - **no building required!**
+
+### What Users Get:
+- **Simulation mode works immediately** (keyboard input)
+- **Hand tracking requires** users to install Ultraleap SDK separately
 
 ### Setup Steps:
 
