@@ -461,7 +461,8 @@ class MenuUI:
     def draw_main_menu(self, has_calibration: bool = False, daily_session_locked: bool = False,
                        menu_message: str = "", menu_options_text: List[str] = None,
                        current_game_to_highlight: Optional[GameMode] = None,
-                       player_name: str = "Default_Player", study_status: str = ""):
+                       player_name: str = "Default_Player", study_status: str = "",
+                       admin_playtime: Optional[str] = None):
         """
         Draw the main menu.
 
@@ -492,6 +493,10 @@ class MenuUI:
         if study_status:
             s_label = self.fonts['small'].render(study_status, True, (150, 150, 200))
             self.surface.blit(s_label, (20, 45))
+        if admin_playtime:
+            pt_label = self.fonts['small'].render(admin_playtime, True, (255, 200, 100))
+            pt_rect = pt_label.get_rect(center=(WINDOW_WIDTH // 2, 68))
+            self.surface.blit(pt_label, pt_rect)
 
         # Title
         title = self.fonts['title'].render("LEAP TRACKING GAMES", True, WHITE)

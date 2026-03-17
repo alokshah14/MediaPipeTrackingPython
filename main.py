@@ -267,6 +267,17 @@ class FingerInvaders:
             elif state == GameState.ANGLE_TEST:
                 self._capture_angle_test_baseline()
 
+        # K key: during calibration reduce current finger threshold by 10%; during gameplay reduce all by 2°
+        elif event.key == pygame.K_k:
+            if state == GameState.CALIBRATING:
+                if self.calibration.lower_current_threshold():
+                    finger = self.calibration.get_current_finger()
+                    new_thresh = self.calibration.get_angle_threshold(finger) if finger else 0
+                    self.game_ui.trigger_multi_press_warning(f"Threshold → {new_thresh:.0f}°")
+            elif state in [GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG]:
+                new_thresh = self.calibration.reduce_all_thresholds(2.0)
+                self.game_ui.trigger_multi_press_warning(f"Threshold → {new_thresh:.0f}°")
+
         # Angle test controls
         elif state == GameState.ANGLE_TEST:
             if event.key == pygame.K_t:
@@ -318,8 +329,11 @@ class FingerInvaders:
         if self.is_test_mode:
             options.append("Angle Test")
 
-        # Game options
-        if not self.daily_session_manager.is_day_locked():
+        # Game options — admin bypasses daily session lock and sees all games
+        if self.admin_mode:
+            options.extend(ALL_GAME_MODES)
+            options.append("High Scores")
+        elif not self.daily_session_manager.is_day_locked():
             info = self.daily_session_manager.get_current_segment_info()
             if info["segment_number"] == 5:
                 options.extend(ALL_GAME_MODES)
@@ -361,6 +375,21 @@ class FingerInvaders:
             self.game_engine.state = GameState.MENU
             self.session_logger.log_calibration(self.calibration.calibration_data)
 
+    def _log_press(self, press_event: dict, score: int = 0, lives: int = 0, difficulty: str = "N/A"):
+        """Log a single finger press to the session logger."""
+        left = self.hand_tracker.latest_hand_data.get('left')
+        right = self.hand_tracker.latest_hand_data.get('right')
+        self.session_logger.log_finger_press(
+            finger_pressed=press_event.get('finger', ''),
+            target_finger=press_event.get('target'),
+            is_correct=press_event.get('correct', False),
+            left_hand_data=left,
+            right_hand_data=right,
+            score=score,
+            lives=lives,
+            difficulty=str(difficulty),
+        )
+
     def _update_finger_invaders(self, dt):
         """Update Finger Invaders game logic."""
         # Check for multi-press warning
@@ -377,6 +406,8 @@ class FingerInvaders:
                 self.sound_manager.play_hit()
             else:
                 self.sound_manager.play_miss()
+            # Log to session file
+            self._log_press(press_event, game_state['score'], game_state.get('lives', 0), game_state['difficulty'])
 
         for pos in events.get('missile_destroyed', []):
             self.game_ui.add_explosion(pos[0], pos[1])
@@ -397,6 +428,7 @@ class FingerInvaders:
             self.game_ui.trigger_multi_press_warning("Multiple fingers pressed!")
 
         events = self.egg_catcher_game.update(dt)
+        ec_state = self.egg_catcher_game.get_game_state()
 
         # Handle press events
         for press_event in events.get('finger_presses', []):
@@ -405,6 +437,8 @@ class FingerInvaders:
                 self.sound_manager.play_hit()
             else:
                 self.sound_manager.play_miss()
+            # Log to session file
+            self._log_press(press_event, ec_state['score'], 0, f"x{ec_state['difficulty']:.1f}")
 
         # Check for game over
         if self.egg_catcher_game.game_over:
@@ -418,6 +452,7 @@ class FingerInvaders:
             self.game_ui.trigger_multi_press_warning("Multiple fingers pressed!")
 
         events = self.ping_pong_game.update(dt)
+        pp_state = self.ping_pong_game.get_game_state()
 
         # Handle press events
         for press_event in events.get('finger_presses', []):
@@ -426,6 +461,8 @@ class FingerInvaders:
                 self.sound_manager.play_hit()
             else:
                 self.sound_manager.play_miss()
+            # Log to session file
+            self._log_press(press_event, pp_state['score'], 0, f"rally:{pp_state['rally_count']}")
 
         # Check for game over
         if self.ping_pong_game.game_over:
@@ -497,6 +534,20 @@ class FingerInvaders:
             if self.admin_mode:
                 study_status += " [ADMIN]"
 
+            # Build playtime footer for admin mode
+            playtime_display = None
+            if self.admin_mode:
+                pt = self.player_manager.get_playtime_display()
+                from game.constants import GameMode as _GM
+                labels = {
+                    _GM.FINGER_INVADERS.value: "Invaders",
+                    _GM.EGG_CATCHER.value: "Egg Catcher",
+                    _GM.PING_PONG.value: "Ping Pong",
+                }
+                parts = [f"{labels.get(k, k)}: {v}" for k, v in pt.items() if k in labels]
+                if parts:
+                    playtime_display = "Playtime — " + "  |  ".join(parts)
+
             self.menu_ui.draw_main_menu(
                 has_calibration=self.calibration.has_calibration(),
                 daily_session_locked=self.daily_session_manager.is_day_locked(),
@@ -504,7 +555,8 @@ class FingerInvaders:
                 menu_options_text=[str(o.name.replace('_',' ').title()) if isinstance(o, GameMode) else str(o) for o in self._get_menu_options()],
                 current_game_to_highlight=info["current_game"],
                 player_name=self.player_manager.player_name,
-                study_status=study_status
+                study_status=study_status,
+                admin_playtime=playtime_display,
             )
         elif state == ExtendedGameState.SET_PLAYER_NAME:
             self.menu_ui.draw_text_input("ENTER PLAYER NAME", self.name_input_text, "Current: " + self.player_manager.player_name)
@@ -811,6 +863,8 @@ class FingerInvaders:
         state = self.game_engine.get_game_state()
         self.session_logger.end_session(state['score'], state['lives'], duration)
         self.daily_session_manager.update_segment_playtime(self.game_engine.current_game_mode, int(duration*1000), state['score'])
+        # Accumulate cumulative playtime per game for admin stats
+        self.player_manager.add_game_playtime(self.game_engine.current_game_mode.value, duration)
 
     def _set_display_mode(self):
         if self.is_fullscreen:

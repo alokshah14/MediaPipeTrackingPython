@@ -135,6 +135,17 @@ class CalibrationManager:
         """Get the angle threshold for a specific finger."""
         return self.angle_thresholds.get(finger_name, FINGER_PRESS_ANGLE_THRESHOLD)
 
+    def reduce_all_thresholds(self, amount: float = 2.0) -> float:
+        """Reduce all finger angle thresholds by *amount* degrees (min 5°). Saves calibration.
+        Returns the new threshold value (all fingers share the same reduction so return one representative)."""
+        for name in FINGER_NAMES:
+            current = self.angle_thresholds.get(name, FINGER_PRESS_ANGLE_THRESHOLD)
+            self.angle_thresholds[name] = max(5.0, current - amount)
+        self.save_calibration()
+        new_val = self.angle_thresholds.get(FINGER_NAMES[0], FINGER_PRESS_ANGLE_THRESHOLD)
+        print(f"All thresholds reduced by {amount}°. Representative threshold: {new_val:.1f}°")
+        return new_val
+
     def get_baseline_angle(self, finger_name: str) -> Optional[float]:
         """Get the baseline angle for a specific finger."""
         return self.baseline_angles.get(finger_name)
