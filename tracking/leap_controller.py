@@ -272,6 +272,7 @@ class LeapController:
                 'fingers': fingers,
                 'grab_strength': hand.grab_strength,
                 'pinch_strength': hand.pinch_strength,
+                'confidence': getattr(hand, 'confidence', 1.0),
             }
 
         self.hands_data = new_hands

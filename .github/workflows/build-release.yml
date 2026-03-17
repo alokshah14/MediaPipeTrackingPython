@@ -1,0 +1,130 @@
+name: Build Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Create simplified spec for GitHub build
+      run: |
+        # Create a simplified spec file that doesn't require Ultraleap SDK
+        # This builds a simulation-mode version
+        python -c "
+        spec_content = '''
+# Simplified build spec for GitHub Actions (no SDK bundling)
+import os
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+
+a = Analysis(
+    [\"main.py\"],
+    binaries=[],
+    datas=[(\"data\", \"data\")] if os.path.exists(\"data\") else [],
+    hiddenimports=[\"OpenGL\", \"numpy\", \"OpenGL.GL\", \"OpenGL.GLU\"],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+)
+
+# Add pygame data and binaries
+a.datas += collect_data_files(\"pygame\")
+a.binaries += collect_dynamic_libs(\"pygame\")
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name=\"FingerInvaders\",
+    debug=False,
+    console=True,
+    disable_windowed_traceback=False,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    name=\"FingerInvaders\",
+)
+'''
+        with open('github_build.spec', 'w') as f:
+            f.write(spec_content)
+        "
+      shell: pwsh
+
+    - name: Build executable
+      run: |
+        pyinstaller github_build.spec --noconfirm
+
+    - name: Create distribution zip
+      run: |
+        cd dist
+        Compress-Archive -Path FingerInvaders -DestinationPath FingerInvaders-Windows.zip
+      shell: pwsh
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FingerInvaders-Windows
+        path: dist/FingerInvaders-Windows.zip
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/FingerInvaders-Windows.zip
+        body: |
+          ## Finger Invaders - Windows Release
+
+          **This is an automated build from GitHub Actions.**
+
+          ### Two Ways to Use:
+
+          **Option 1: Keyboard Simulation Mode (Works Immediately)**
+          - Download and extract `FingerInvaders-Windows.zip`
+          - Run `FingerInvaders.exe --simulation`
+          - Use keyboard to simulate finger presses:
+            - Left hand: Q W E R T (pinky to thumb)
+            - Right hand: Y U I O P (thumb to pinky)
+
+          **Option 2: Full Hand Tracking Mode**
+          - Install [Ultraleap Hand Tracking Service](https://leap2.ultraleap.com/downloads/)
+          - Ensure Leap Motion device is connected
+          - Run `FingerInvaders.exe`
+          - Note: This build may have limited Leap support. For best results, build manually with full SDK.
+
+          ### Requirements:
+          - Windows 10/11 (64-bit)
+          - For hand tracking: Ultraleap Hand Tracking Service + Leap Motion device
+
+          **No Python or Git required!**
+
+          ---
+
+          *For full Leap Motion support with bundled SDK, build manually using `build-windows.bat` on a Windows machine with Ultraleap SDK installed.*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
 from game.constants import GameMode, ALL_GAME_MODES, SESSION_SEGMENT_DURATION
+from .player_manager import PlayerManager
 
 DAILY_SESSION_FILE = "data/daily_session_state.json"
 
@@ -48,7 +49,8 @@ class DailySessionState:
         )
 
 class DailySessionManager:
-    def __init__(self):
+    def __init__(self, player_manager: PlayerManager):
+        self.player_manager = player_manager
         self.state: DailySessionState = self._load_daily_state()
         self._check_for_new_day()
 
@@ -80,42 +82,57 @@ class DailySessionManager:
         print(f"New day detected ({today}). Resetting daily session.")
         self.state = DailySessionState(last_played_date=today)
         
-        # Randomize the order of the three main games for the first 3 segments
         main_games = [GameMode.FINGER_INVADERS, GameMode.EGG_CATCHER, GameMode.PING_PONG]
-        random.shuffle(main_games)
-        self.state.daily_game_order = main_games
+        
+        # Check if we should use fixed order (Home Study Week 1)
+        is_week_one = self.player_manager.is_home_study and self.player_manager.get_days_since_start() < 7
+        
+        if is_week_one:
+            print("Enforcing Week 1 Fixed Order: Invaders -> Egg -> Pong")
+            # Fixed order as requested
+            self.state.daily_game_order = [
+                GameMode.FINGER_INVADERS,
+                GameMode.EGG_CATCHER,
+                GameMode.PING_PONG
+            ]
+        else:
+            # Randomize for Lab or Week 2+
+            random.shuffle(main_games)
+            self.state.daily_game_order = main_games
         
         # Initialize the game progression track
-        self.state.game_progression_track = [main_games[0], main_games[1], main_games[2], GameMode.FREE_PLAY, GameMode.FREE_PLAY] # Placeholder for segments 4 & 5
-        self.state.current_segment = 1 # Start with the first segment
+        self.state.game_progression_track = [
+            self.state.daily_game_order[0], 
+            self.state.daily_game_order[1], 
+            self.state.daily_game_order[2], 
+            GameMode.FREE_PLAY, 
+            GameMode.FREE_PLAY
+        ]
+        self.state.current_segment = 1 
         self.state.is_locked_for_day = False
-        self.state.segment_playtime_ms = 0 # Reset playtime for the new segment
-        self.state.segment_scores = {} # Reset scores
+        self.state.segment_playtime_ms = 0
+        self.state.segment_scores = {}
 
     def get_current_playable_games(self) -> List[GameMode]:
         if self.state.is_locked_for_day:
             return []
 
-        if self.state.current_segment == 0: # Before any segment started (should be handled by _check_for_new_day)
+        if self.state.current_segment == 0: 
             self._reset_daily_session(datetime.now().date())
             self._save_daily_state()
         
         if self.state.current_segment <= 3:
-            # First 3 segments: only the current game in the randomized order is available
             current_game = self.state.daily_game_order[self.state.current_segment - 1]
             return [current_game]
         elif self.state.current_segment == 4:
-            # 4th segment: lowest scoring game from the first 3
             if self.state.lowest_score_game:
                 return [self.state.lowest_score_game]
             else:
-                # Fallback if somehow lowest_score_game wasn't set (shouldn't happen)
                 return [] 
         elif self.state.current_segment == 5:
-            # 5th segment: all games are available (free play)
             return ALL_GAME_MODES
         
-        return [] # Should not reach here if logic is correct
+        return []
 
     def get_current_segment_info(self) -> Dict:
         if self.state.is_locked_for_day:
@@ -138,9 +155,9 @@ class DailySessionManager:
             if segment_game:
                 message = f"Play your lowest-scoring game: {segment_game.name.replace('_', ' ').title()} for 5 minutes."
             else:
-                message = "Determining lowest scoring game..." # Should not happen if logic is correct
+                message = "Determining lowest scoring game..." 
         elif self.state.current_segment == 5:
-            segment_game = None # User can choose any game
+            segment_game = None 
             message = "Final session: Play any game for 5 minutes!"
         
         time_remaining_ms = max(0, SESSION_SEGMENT_DURATION - self.state.segment_playtime_ms)
@@ -157,40 +174,32 @@ class DailySessionManager:
         if self.state.is_locked_for_day:
             return
 
-        # Ensure the game being updated is the one currently expected, or a free play game in segment 5
         if not (self.state.current_segment == 5 and game_mode_played in ALL_GAME_MODES) and \
            not (self.state.current_segment <= 3 and game_mode_played == self.state.daily_game_order[self.state.current_segment - 1]) and \
            not (self.state.current_segment == 4 and game_mode_played == self.state.lowest_score_game):
-            # This case means a game was played that wasn't the "current" game for the segment.
-            # This could happen if the user somehow forces a game or if there's a bug in UI enabling.
-            # For now, we'll just log and ignore the playtime towards segment progression.
             print(f"Warning: Playtime for {game_mode_played.name} updated, but it's not the expected game for segment {self.state.current_segment}.")
             return
             
         self.state.segment_playtime_ms += elapsed_ms
 
         if self.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
-            self.state.segment_playtime_ms = SESSION_SEGMENT_DURATION # Cap at max duration
+            self.state.segment_playtime_ms = SESSION_SEGMENT_DURATION 
 
-            # Record score for this segment (relevant for first 3 and 4th)
             if self.state.current_segment <= 4:
                 self.state.segment_scores[game_mode_played.value] = current_score
 
             self.state.current_segment += 1
-            self.state.segment_playtime_ms = 0 # Reset for next segment
+            self.state.segment_playtime_ms = 0 
 
             if self.state.current_segment == 4:
-                # After 3rd segment, determine lowest scoring game
-                if len(self.state.segment_scores) == 3:
+                if len(self.state.segment_scores) >= 3:
                     self._determine_lowest_score_game()
                 else:
-                    # Fallback if not all 3 scores were recorded (shouldn't happen with forced playtime)
                     print("Warning: Not all 3 segment scores recorded for lowest score calculation.")
-                    self.state.lowest_score_game = random.choice(ALL_GAME_MODES) # Default to random
-                self.state.game_progression_track[3] = self.state.lowest_score_game # Update track
+                    self.state.lowest_score_game = random.choice(ALL_GAME_MODES) 
+                self.state.game_progression_track[3] = self.state.lowest_score_game 
 
             elif self.state.current_segment > 5:
-                # All 5 segments completed
                 self.state.is_locked_for_day = True
 
         self._save_daily_state()
@@ -203,7 +212,6 @@ class DailySessionManager:
         lowest_score = float('inf')
         lowest_game: Optional[GameMode] = None
 
-        # Check only the games from the daily_game_order for scores
         for game_mode in self.state.daily_game_order:
             score = self.state.segment_scores.get(game_mode.value)
             if score is not None and score < lowest_score:
@@ -223,5 +231,5 @@ class DailySessionManager:
         elif self.state.current_segment == 4:
             return self.state.lowest_score_game
         elif self.state.current_segment == 5:
-            return None # Means user can choose, handled by get_current_playable_games
+            return None 
         return None

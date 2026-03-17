@@ -82,11 +82,12 @@ class GameUI:
         rect = text.get_rect(center=(WINDOW_WIDTH // 2, GAME_AREA_TOP + 40))
         self.surface.blit(text, rect)
 
-    def draw_background(self):
+    def draw_background(self, skip_fill: bool = False):
         """Draw the game background (only in game area, leave hand area for 3D)."""
-        # Only fill the game area, leave hand area transparent for 3D rendering
-        game_area_rect = pygame.Rect(0, 0, WINDOW_WIDTH, GAME_AREA_BOTTOM)
-        pygame.draw.rect(self.surface, BACKGROUND, game_area_rect)
+        if not skip_fill:
+            # Only fill the game area, leave hand area transparent for 3D rendering
+            game_area_rect = pygame.Rect(0, 0, WINDOW_WIDTH, GAME_AREA_BOTTOM)
+            pygame.draw.rect(self.surface, BACKGROUND, game_area_rect)
 
         # Draw distinct background tints for left vs right sides
         left_tint = pygame.Surface((WINDOW_WIDTH // 2, GAME_AREA_BOTTOM - GAME_AREA_TOP), pygame.SRCALPHA)
@@ -391,9 +392,10 @@ class GameUI:
         Args:
             reason: Text to display (e.g., "PAUSED", "HANDS NOT DETECTED")
         """
-        # Semi-transparent overlay
+        # Semi-transparent overlay - use lighter alpha for hands not detected to see ghost hands
+        alpha = 140 if reason == "HANDS NOT DETECTED" else 180
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
+        overlay.fill((0, 0, 0, alpha))
         self.surface.blit(overlay, (0, 0))
 
         # Pause text
@@ -458,16 +460,20 @@ class MenuUI:
 
     def draw_main_menu(self, has_calibration: bool = False, daily_session_locked: bool = False,
                        menu_message: str = "", menu_options_text: List[str] = None,
-                       current_game_to_highlight: Optional[GameMode] = None):
+                       current_game_to_highlight: Optional[GameMode] = None,
+                       player_name: str = "Default_Player", study_status: str = "",
+                       admin_playtime: Optional[str] = None):
         """
         Draw the main menu.
 
         Args:
             has_calibration: Whether calibration data exists.
             daily_session_locked: True if all daily sessions are completed.
-            menu_message: Message to display at the top of the menu (e.g., "Play Finger Invaders").
+            menu_message: Message to display at the top of the menu.
             menu_options_text: List of strings for menu options.
-            current_game_to_highlight: The GameMode enum of the game to highlight as currently active.
+            current_game_to_highlight: GameMode enum to highlight.
+            player_name: Name of the current player.
+            study_status: String describing study progress.
         """
         # Clear to transparent so 3D hand area can show through
         self.surface.fill((0, 0, 0, 0))
@@ -480,6 +486,17 @@ class MenuUI:
             size = (i % 3) + 1
             brightness = 50 + (i * 7) % 100
             pygame.draw.circle(self.surface, (brightness, brightness, brightness + 50), (x, y), size)
+
+        # Player info at top left
+        p_label = self.fonts['small'].render(f"PLAYER: {player_name.upper()}", True, (200, 200, 255))
+        self.surface.blit(p_label, (20, 20))
+        if study_status:
+            s_label = self.fonts['small'].render(study_status, True, (150, 150, 200))
+            self.surface.blit(s_label, (20, 45))
+        if admin_playtime:
+            pt_label = self.fonts['small'].render(admin_playtime, True, (255, 200, 100))
+            pt_rect = pt_label.get_rect(center=(WINDOW_WIDTH // 2, 68))
+            self.surface.blit(pt_label, pt_rect)
 
         # Title
         title = self.fonts['title'].render("LEAP TRACKING GAMES", True, WHITE)
@@ -496,16 +513,16 @@ class MenuUI:
         
         start_y = 250
         for i, label in enumerate(options):
-            y = start_y + i * 80
+            y = start_y + i * 70
 
             # Determine if option is available/locked
             available = True
             is_game_option = False
             game_mode_from_label: Optional[GameMode] = None
 
-            # Special handling for "Play Finger Invaders" when no current_game_to_highlight (e.g., initial startup)
+            # Special handling for initial "Calibrate"
             if not daily_session_locked and "Calibrate" in label and not has_calibration and i == 0:
-                available = True # Calibrate is always available as first option if daily not locked
+                available = True
 
             # Check if this is a game option
             for gm in ALL_GAME_MODES:
@@ -514,20 +531,17 @@ class MenuUI:
                     game_mode_from_label = gm
                     break
             
-            # Lock logic for game options
             if is_game_option:
                 if daily_session_locked:
-                    available = False # All games locked if day is locked
+                    available = False
                 elif not has_calibration:
-                    available = False # Cannot play games without calibration
+                    available = False
                 elif current_game_to_highlight and current_game_to_highlight != GameMode.FREE_PLAY and game_mode_from_label != current_game_to_highlight:
-                    # If there's a specific game to highlight, other game options are not available
                     available = False
 
-            # High Scores and Quit are generally available unless daily_session_locked means only Quit is left
             if "Quit" in label:
                 available = True
-            if "High Scores" in label and daily_session_locked: # If day is locked, only calibrate and quit are shown, so High Scores isn't an option.
+            if "High Scores" in label and daily_session_locked:
                  available = False
 
             # Selection indicator
@@ -535,61 +549,56 @@ class MenuUI:
                 pulse = abs(math.sin(self.animation_phase * 3)) * 0.3 + 0.7
                 color = tuple(int(c * pulse) for c in (255, 255, 100))
 
-                # Draw selection box
                 box_width = 450
-                pygame.draw.rect(
-                    self.surface,
-                    (50, 50, 80),
-                    (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 60),
-                    border_radius=10
-                )
-                pygame.draw.rect(
-                    self.surface,
-                    color,
-                    (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 60),
-                    2,
-                    border_radius=10
-                )
+                pygame.draw.rect(self.surface, (50, 50, 80), (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 50), border_radius=10)
+                pygame.draw.rect(self.surface, color, (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 50), 2, border_radius=10)
             elif i == self.selected_option and not available:
-                # Selected but locked - show red outline
                 box_width = 450
-                pygame.draw.rect(
-                    self.surface,
-                    (40, 30, 30),
-                    (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 60),
-                    border_radius=10
-                )
-                pygame.draw.rect(
-                    self.surface,
-                    (150, 80, 80),
-                    (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 60),
-                    2,
-                    border_radius=10
-                )
+                pygame.draw.rect(self.surface, (40, 30, 30), (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 50), border_radius=10)
+                pygame.draw.rect(self.surface, (150, 80, 80), (WINDOW_WIDTH // 2 - box_width // 2, y - 15, box_width, 50), 2, border_radius=10)
                 color = (150, 80, 80)
             else:
                 color = WHITE if available else DARK_GRAY
             
-            # Highlight the current active game for the segment
             if is_game_option and game_mode_from_label == current_game_to_highlight and not daily_session_locked:
                 color = YELLOW
 
-
-            # Label
-            label_text = self.fonts['large'].render(label, True, color if available else DARK_GRAY)
-            label_rect = label_text.get_rect(center=(WINDOW_WIDTH // 2, y + 5))
+            label_text = self.fonts['medium'].render(label, True, color if available else DARK_GRAY)
+            label_rect = label_text.get_rect(center=(WINDOW_WIDTH // 2, y + 10))
             self.surface.blit(label_text, label_rect)
-
-            # Removed description - now handled by menu_message or inferred
-            # if description:
-            #     desc_text = self.fonts['small'].render(description, True, GRAY if available else DARK_GRAY)
-            #     desc_rect = desc_text.get_rect(center=(WINDOW_WIDTH // 2, y + 35))
-            #     self.surface.blit(desc_text, desc_rect)
 
         # Instructions
         inst = self.fonts['small'].render("Use UP/DOWN arrows to select, ENTER to confirm", True, (100, 100, 150))
         inst_rect = inst.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 50))
         self.surface.blit(inst, inst_rect)
+
+    def draw_text_input(self, title: str, current_text: str, subtitle: str = ""):
+        """Draw a text input screen."""
+        self.surface.fill(BACKGROUND)
+        
+        # Title
+        t_render = self.fonts['large'].render(title, True, WHITE)
+        self.surface.blit(t_render, (WINDOW_WIDTH // 2 - t_render.get_width() // 2, 200))
+        
+        if subtitle:
+            s_render = self.fonts['small'].render(subtitle, True, GRAY)
+            self.surface.blit(s_render, (WINDOW_WIDTH // 2 - s_render.get_width() // 2, 260))
+            
+        # Input Box
+        box_w, box_h = 600, 80
+        box_x = WINDOW_WIDTH // 2 - box_w // 2
+        box_y = 350
+        pygame.draw.rect(self.surface, (30, 30, 50), (box_x, box_y, box_w, box_h), border_radius=5)
+        pygame.draw.rect(self.surface, YELLOW, (box_x, box_y, box_w, box_h), 2, border_radius=5)
+        
+        # Input Text
+        display_text = current_text + "_" if (pygame.time.get_ticks() // 500) % 2 == 0 else current_text
+        txt_render = self.fonts['large'].render(display_text, True, WHITE)
+        self.surface.blit(txt_render, (box_x + 20, box_y + box_h // 2 - txt_render.get_height() // 2))
+        
+        # Instructions
+        inst = self.fonts['medium'].render("Press ENTER to Save, ESC to Cancel", True, (150, 150, 200))
+        self.surface.blit(inst, (WINDOW_WIDTH // 2 - inst.get_width() // 2, 500))
 
     def draw_connect_device(self, message: str = ""):
         """Draw the connect-device screen."""
@@ -668,12 +677,12 @@ class MenuUI:
             "",
             "Calibration Process:",
             "1. Press SPACE - you have 5 seconds to place your LEFT hand",
-            "2. Keep LEFT hand fingers RELAXED for 10 seconds (baseline)",
-            "3. Then keep RIGHT hand fingers RELAXED for 10 seconds",
+            "2. Keep LEFT hand fingers RELAXED for 5 seconds (baseline)",
+            "3. Then keep RIGHT hand fingers RELAXED for 5 seconds",
             "4. Press each finger past 30 degrees when prompted",
             "5. Hold briefly - auto-advances to next finger",
             "",
-            "You can calibrate by yourself - no need to press keys during!",
+            "You can press [K] to lower the threshold by 10% if you struggle.",
             "",
             "Press SPACE to begin calibration",
             "Press ESC to return to menu",
@@ -764,6 +773,12 @@ class MenuUI:
         menu_options = []
         if include_calibrate:
             menu_options.append("Calibrate")
+        
+        # Add player management options
+        menu_options.append("Set Player Name")
+        if not self.is_home_study_active(current_segment_info): # We'll need a way to check this
+             menu_options.append("Send Home")
+
         if include_angle_test:
             menu_options.append("Angle Test")
         if not daily_session_locked:
@@ -787,6 +802,10 @@ class MenuUI:
             can_select = True
             if "Calibrate" in str(selected_option_value): # Calibrate option
                 can_select = include_calibrate
+            elif "Set Player Name" in str(selected_option_value):
+                can_select = True
+            elif "Send Home" in str(selected_option_value):
+                can_select = True
             elif "Angle Test" in str(selected_option_value):
                 can_select = include_angle_test
             elif "Quit" in str(selected_option_value): # Quit option
@@ -810,9 +829,11 @@ class MenuUI:
             new_selection = (new_selection + direction) % num_options
             attempts += 1
 
-        # If after looping, no selectable option found (shouldn't happen with Calibrate/Quit always available)
-        self.selected_option = new_selection # Default to whatever it landed on
+        self.selected_option = new_selection
 
+    def is_home_study_active(self, current_segment_info: Dict) -> bool:
+        # Helper for menu logic - will be updated by caller
+        return False
 
     def get_selected_option(self) -> int:
         """Get currently selected option index."""
@@ -1119,12 +1140,14 @@ class MenuUI:
                 color = (100, 100, 100)  # Gray - hand not detected
                 status_text = "NOT DETECTED"
 
-            # Draw hand icon (circle representation)
-            pygame.draw.circle(self.surface, color, (hand_x, hand_y), circle_radius, 4 if large else 3)
+            # Skip drawing circles if in large mode (we'll use 3D hands)
+            if not large:
+                # Draw hand icon (circle representation) for compact mode
+                pygame.draw.circle(self.surface, color, (hand_x, hand_y), circle_radius, 3)
 
-            # Fill circle if in position
-            if in_position:
-                pygame.draw.circle(self.surface, (*color[:3], 100), (hand_x, hand_y), circle_radius - 8)
+                # Fill circle if in position
+                if in_position:
+                    pygame.draw.circle(self.surface, (*color[:3], 100), (hand_x, hand_y), circle_radius - 8)
 
             # Draw hand label
             label = font_label.render(f"{hand_type.upper()} HAND", True, color)

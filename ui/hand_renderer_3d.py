@@ -49,10 +49,12 @@ class OpenGLHandRenderer:
         self.camera_distance = 200  # Distance to fit whole hand
         self.camera_fov = 50
         self.camera_near = 1.0
-        self.camera_far = 500.0
+        self.camera_far = 1000.0
 
         # Hand data for rendering
+        self.view_mode = "bottom"  # "bottom" or "center"
         self.hand_data: Dict = {}
+        self.calibrated_hand_data: Dict = {}
         self.finger_states: Dict[str, bool] = {}
         self.highlighted_fingers: Set[str] = set()  # Fingers to highlight (targets)
 
@@ -93,12 +95,21 @@ class OpenGLHandRenderer:
         if highlighted_fingers is not None:
             self.highlighted_fingers = highlighted_fingers
 
+    def set_calibrated_hand_data(self, calibrated_hand_data: Dict):
+        """Set the calibrated hand model data for reference rendering."""
+        self.calibrated_hand_data = calibrated_hand_data or {}
+
     def set_angle_debug(self, finger_name: Optional[str], show_pip: bool = True, show_mcp: bool = True, mode: str = "pip"):
         """Enable angle debug overlay for a specific finger."""
         self.angle_debug_finger = finger_name
         self.show_angle_pip = show_pip
         self.show_angle_mcp = show_mcp
         self.angle_debug_mode = mode
+
+    def set_view_mode(self, mode: str):
+        """Set the view mode ('bottom' or 'center')."""
+        if mode in ("bottom", "center"):
+            self.view_mode = mode
 
     def draw(self):
         """Draw the 3D hand visualization."""
@@ -126,15 +137,21 @@ class OpenGLHandRenderer:
         scale_y = self.screen_height / WINDOW_HEIGHT
 
         # Define the sub-viewports for left and right hands.
-        viewport_width = int(WINDOW_WIDTH // 2 * scale_x)
-        viewport_height = int(self.hand_area_height * scale_y)
-        viewport_y = int((WINDOW_HEIGHT - (self.hand_area_top + self.hand_area_height)) * scale_y)
+        if self.view_mode == "center":
+            # Larger viewports in center
+            viewport_width = int(WINDOW_WIDTH // 2 * scale_x)
+            viewport_height = int(500 * scale_y)
+            viewport_y = int((WINDOW_HEIGHT - 500) // 2 * scale_y)
+            glClearColor(0.01, 0.01, 0.03, 1.0)
+        else:
+            # Default bottom viewports
+            viewport_width = int(WINDOW_WIDTH // 2 * scale_x)
+            viewport_height = int(self.hand_area_height * scale_y)
+            viewport_y = int((WINDOW_HEIGHT - (self.hand_area_top + self.hand_area_height)) * scale_y)
+            glClearColor(0.05, 0.05, 0.1, 1.0)
 
         # Enable scissor test to limit clears to each viewport
         glEnable(GL_SCISSOR_TEST)
-
-        # Background color for hand area
-        glClearColor(0.05, 0.05, 0.1, 1.0)  # Dark blue-gray
 
         # --- Draw Left Hand Viewport ---
         glViewport(0, viewport_y, viewport_width, viewport_height)
@@ -143,6 +160,11 @@ class OpenGLHandRenderer:
 
         self._setup_camera_for_hand(viewport_width, viewport_height)
 
+        # Draw calibrated ghost hand first (reference origin)
+        if self.view_mode == "center" and self.calibrated_hand_data.get('left'):
+            self._draw_single_hand(self.calibrated_hand_data.get('left'), 'left', is_ghost=True)
+
+        # Draw live hand
         if self.hand_data.get('left') and self.hand_data['left'].get('valid', False):
             self._draw_single_hand(self.hand_data.get('left'), 'left')
 
@@ -154,6 +176,11 @@ class OpenGLHandRenderer:
 
         self._setup_camera_for_hand(viewport_width, viewport_height)
 
+        # Draw calibrated ghost hand first
+        if self.view_mode == "center" and self.calibrated_hand_data.get('right'):
+            self._draw_single_hand(self.calibrated_hand_data.get('right'), 'right', is_ghost=True)
+
+        # Draw live hand
         if self.hand_data.get('right') and self.hand_data['right'].get('valid', False):
             self._draw_single_hand(self.hand_data.get('right'), 'right')
 
@@ -175,212 +202,180 @@ class OpenGLHandRenderer:
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         # Camera looking at hand from in front and slightly above
-        # Hand will be centered at origin, so look at (0, 0, 0)
-        gluLookAt(0, 50, self.camera_distance,  # Camera position (slightly above)
-                  0, 0, 0,                       # Look at origin
-                  0, 1, 0)                       # Up vector
+        # The reference origin (0,0,0) is the calibrated palm position
+        gluLookAt(0, 50, self.camera_distance,
+                  0, 0, 0,
+                  0, 1, 0)
 
-    def _draw_single_hand(self, hand_model: Optional[Dict], hand_type: str):
-        """Draw a single 3D hand."""
-        if not hand_model or not hand_model.get('valid', False):
+    def _draw_target_box(self, size: float):
+        """Draw a wireframe box at the reference origin to show target palm position."""
+        glDisable(GL_LIGHTING)
+        glLineWidth(2.0)
+        glColor4f(0.0, 1.0, 1.0, 0.6)  # Cyan wireframe
+        
+        s = size
+        glBegin(GL_LINES)
+        # Top
+        glVertex3f(-s, s, -s); glVertex3f(s, s, -s)
+        glVertex3f(s, s, -s); glVertex3f(s, s, s)
+        glVertex3f(s, s, s); glVertex3f(-s, s, s)
+        glVertex3f(-s, s, s); glVertex3f(-s, s, -s)
+        # Bottom
+        glVertex3f(-s, -s, -s); glVertex3f(s, -s, -s)
+        glVertex3f(s, -s, -s); glVertex3f(s, -s, s)
+        glVertex3f(s, -s, s); glVertex3f(-s, -s, s)
+        glVertex3f(-s, -s, s); glVertex3f(-s, -s, -s)
+        # Verticals
+        glVertex3f(-s, s, -s); glVertex3f(-s, -s, -s)
+        glVertex3f(s, s, -s); glVertex3f(s, -s, -s)
+        glVertex3f(s, s, s); glVertex3f(s, -s, s)
+        glVertex3f(-s, s, s); glVertex3f(-s, -s, s)
+        glEnd()
+        glEnable(GL_LIGHTING)
+
+    def _draw_single_hand(self, hand_model: Optional[Dict], hand_type: str, is_ghost: bool = False):
+        """Draw a single 3D hand, optionally as a ghost reference."""
+        if not hand_model:
             return
+        
+        # Use calibrated palm as the origin for both hands to show spatial offset
+        cal_hand = self.calibrated_hand_data.get(hand_type)
+        if cal_hand and self.view_mode == "center":
+            reference_palm = cal_hand.get('palm_position', [0, 0, 0])
+        else:
+            # If no calibration or not in center view, center the hand on its own palm
+            reference_palm = hand_model.get('palm_position', [0, 0, 0])
+
+        # Current palm for this specific model
+        palm_pos = hand_model.get('palm_position', [0, 0, 0])
+        
+        scale_factor = 0.8
+        palm_radius = PALM_RADIUS * scale_factor * 0.6
 
         glPushMatrix()
+        # Rotate entire scene to look from above
+        glRotatef(-60, 1, 0, 0)
 
-        # Scale factor - Leap Motion uses mm, we want hand to fill viewport nicely
-        # Typical hand span is ~150-200mm, we want it to appear ~100-150 units
-        scale_factor = 0.8
+        # Draw target "outline" box only once per hand (when drawing ghost)
+        if is_ghost and self.view_mode == "center":
+            self._draw_target_box(palm_radius * 1.5)
 
-        palm_pos = hand_model.get('palm_position', [0, 0, 0])
+        # Calculate palm offset relative to reference origin
+        rel_palm = [
+            (palm_pos[0] - reference_palm[0]) * scale_factor,
+            (palm_pos[1] - reference_palm[1]) * scale_factor,
+            -(palm_pos[2] - reference_palm[2]) * scale_factor
+        ]
 
-        # DON'T translate by absolute palm position - this keeps hand centered
-        # Instead, we'll render all bones relative to the palm position
-        # Just apply a small rotation to view hand from a good angle
-        glRotatef(-60, 1, 0, 0)  # Tilt hand to see it from above
+        # Draw palm center
+        glPushMatrix()
+        glTranslatef(rel_palm[0], rel_palm[1], rel_palm[2])
+        if is_ghost:
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glDisable(GL_LIGHTING)
+            glColor4f(0.5, 0.8, 1.0, 0.5)
+        else:
+            glColor3f(*tuple(c / 255.0 for c in HAND_COLOR))
+        
+        gluSphere(self.quadric, palm_radius, 16, 16)
+        
+        if is_ghost:
+            glEnable(GL_LIGHTING)
+            glDisable(GL_BLEND)
+        glPopMatrix()
 
         # Draw fingers and bones
         for finger_name, finger_data in hand_model.get('fingers', {}).items():
             if not finger_data or not finger_data.get('valid', False):
                 continue
 
-            # Check if this finger should be highlighted
             full_finger_name = f"{hand_type}_{finger_name}"
             is_highlighted = full_finger_name in self.highlighted_fingers
             is_pressed = self.finger_states.get(full_finger_name, False)
-
-            # Pulsing effect for highlighted fingers
             pulse = (math.sin(self.pulse_phase * 5) * 0.5 + 0.5) if is_highlighted else 0
 
-            for i in range(4):  # 4 bones per finger: metacarpal, proximal, intermediate, distal
-                bone_type = ['metacarpal', 'proximal', 'intermediate', 'distal'][i]
+            for bone_type in ['metacarpal', 'proximal', 'intermediate', 'distal']:
                 bone_data = finger_data.get(bone_type)
+                if not bone_data: continue
 
-                if not bone_data:
-                    continue
+                # Get bone joints and convert to RELATIVE TO REFERENCE
+                start_raw = bone_data.get('start') or bone_data.get('prev_joint')
+                end_raw = bone_data.get('end') or bone_data.get('next_joint')
+                if not start_raw or not end_raw: continue
 
-                # Get bone start and end positions in Leap Motion coordinates
-                start_pos = bone_data.get('start', [0, 0, 0])
-                end_pos = bone_data.get('end', [0, 0, 0])
-
-                # Relative positions from the hand's palm position
-                rel_start_pos = [start_pos[j] - palm_pos[j] for j in range(3)]
-                rel_end_pos = [end_pos[j] - palm_pos[j] for j in range(3)]
-
-                # Bone vector
-                bone_vec = [rel_end_pos[j] - rel_start_pos[j] for j in range(3)]
-                bone_length = (bone_vec[0]**2 + bone_vec[1]**2 + bone_vec[2]**2)**0.5
-
-                if bone_length < 0.1:
-                    continue
-
-                # Normalize bone vector
-                norm_bone_vec = [bone_vec[j] / bone_length for j in range(3)]
-
-                glPushMatrix()
-                glTranslatef(rel_start_pos[0] * scale_factor,
-                             rel_start_pos[1] * scale_factor,
-                             -rel_start_pos[2] * scale_factor)
-
-                # Calculate rotation to orient cylinder along bone
-                target_vec_opengl = (norm_bone_vec[0], norm_bone_vec[1], -norm_bone_vec[2])
-                z_axis = (0.0, 0.0, 1.0)
-                cross_product = [
-                    z_axis[1] * target_vec_opengl[2] - z_axis[2] * target_vec_opengl[1],
-                    z_axis[2] * target_vec_opengl[0] - z_axis[0] * target_vec_opengl[2],
-                    z_axis[0] * target_vec_opengl[1] - z_axis[1] * target_vec_opengl[0]
+                rel_start = [
+                    (start_raw[0] - reference_palm[0]) * scale_factor,
+                    (start_raw[1] - reference_palm[1]) * scale_factor,
+                    -(start_raw[2] - reference_palm[2]) * scale_factor
+                ]
+                rel_end = [
+                    (end_raw[0] - reference_palm[0]) * scale_factor,
+                    (end_raw[1] - reference_palm[1]) * scale_factor,
+                    -(end_raw[2] - reference_palm[2]) * scale_factor
                 ]
 
-                cross_mag = math.sqrt(sum(c * c for c in cross_product))
-                dot_product = sum(z_axis[k] * target_vec_opengl[k] for k in range(3))
-                angle = math.acos(max(-1.0, min(1.0, dot_product)))
+                # Bone vector and orientation
+                bone_vec = [rel_end[j] - rel_start[j] for j in range(3)]
+                bone_length = math.sqrt(sum(v*v for v in bone_vec))
+                if bone_length < 0.1: continue
 
-                if cross_mag > 0.001 and angle > 0.001:
-                    glRotatef(math.degrees(angle), cross_product[0], cross_product[1], cross_product[2])
+                glPushMatrix()
+                glTranslatef(rel_start[0], rel_start[1], rel_start[2])
 
-                # Set color based on state
+                # Rotate cylinder to match bone direction
+                target_vec = [v/bone_length for v in bone_vec]
+                z_axis = (0.0, 0.0, 1.0)
+                cross_prod = [
+                    z_axis[1] * target_vec[2] - z_axis[2] * target_vec[1],
+                    z_axis[2] * target_vec[0] - z_axis[0] * target_vec[2],
+                    z_axis[0] * target_vec[1] - z_axis[1] * target_vec[0]
+                ]
+                cross_mag = math.sqrt(sum(c*c for c in cross_prod))
+                dot_prod = sum(z_axis[k] * target_vec[k] for k in range(3))
+                rot_angle = math.acos(max(-1.0, min(1.0, dot_prod)))
+
+                if cross_mag > 0.001:
+                    glRotatef(math.degrees(rot_angle), cross_prod[0], cross_prod[1], cross_prod[2])
+
+                # Styling
                 bone_radius = FINGER_JOINT_RADIUS * scale_factor * 0.7
-
-                if is_highlighted:
-                    # Highlighted: pulsing yellow/orange
-                    r = 1.0
-                    g = 0.7 + pulse * 0.3
-                    b = 0.0
-                    glColor3f(r, g, b)
+                if is_ghost:
+                    glEnable(GL_BLEND)
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+                    glDisable(GL_LIGHTING)
+                    glColor4f(0.5, 0.8, 1.0, 0.5)
+                elif is_highlighted:
+                    glColor3f(1.0, 0.7 + pulse * 0.3, 0.0)
                 elif is_pressed:
-                    # Pressed: green
                     glColor3f(0.2, 1.0, 0.2)
                 else:
-                    # Normal: skin tone
                     glColor3f(*tuple(c / 255.0 for c in FINGER_NORMAL))
 
-                # Draw bone cylinder
-                gluCylinder(self.quadric, bone_radius, bone_radius, bone_length * scale_factor, 10, 1)
-
-                # Draw joint sphere at start
+                # Draw components
+                gluCylinder(self.quadric, bone_radius, bone_radius, bone_length, 10, 1)
                 gluSphere(self.quadric, bone_radius * 1.2, 10, 10)
 
-                # Draw fingertip (larger, more visible) on distal bone
                 if bone_type == 'distal':
                     glPushMatrix()
-                    glTranslatef(0, 0, bone_length * scale_factor)
-
-                    # Fingertip is bigger and brighter when highlighted
-                    tip_radius = bone_radius * (2.5 if is_highlighted else 1.8)
-
-                    if is_highlighted:
-                        # Bright pulsing fingertip for target
-                        glColor3f(1.0, 0.8 + pulse * 0.2, 0.0 + pulse * 0.3)
-                    elif is_pressed:
-                        glColor3f(0.3, 1.0, 0.3)
-
-                    gluSphere(self.quadric, tip_radius, 12, 12)
-                    glPopMatrix()
-                else:
-                    # Regular joint at end of non-distal bones
-                    glPushMatrix()
-                    glTranslatef(0, 0, bone_length * scale_factor)
-                    gluSphere(self.quadric, bone_radius * 1.2, 10, 10)
+                    glTranslatef(0, 0, bone_length)
+                    tip_rad = bone_radius * (2.5 if is_highlighted else 1.8)
+                    if is_ghost: glColor4f(0.5, 0.8, 1.0, 0.4)
+                    gluSphere(self.quadric, tip_rad, 12, 12)
                     glPopMatrix()
 
+                if is_ghost:
+                    glEnable(GL_LIGHTING)
+                    glDisable(GL_BLEND)
                 glPopMatrix()
 
-            # Angle debug overlay for selected finger
-            full_finger_name = f"{hand_type}_{finger_name}"
-            if self.angle_debug_finger == full_finger_name:
-                self._draw_angle_debug_for_finger(finger_data, palm_pos, scale_factor)
-
-        glPopMatrix()  # Pop hand transformation
-
-    def _draw_angle_debug_for_finger(self, finger_data: Dict, palm_pos: List[float], scale_factor: float):
-        """Draw colored lines/points showing MCP and PIP angle segments."""
-        def to_rel(pos):
-            return [
-                (pos[0] - palm_pos[0]) * scale_factor,
-                (pos[1] - palm_pos[1]) * scale_factor,
-                -(pos[2] - palm_pos[2]) * scale_factor,
-            ]
-
-        def draw_segment(start, end, color, width=4.0):
-            glDisable(GL_LIGHTING)
-            glDisable(GL_DEPTH_TEST)
-            glLineWidth(width)
-            glColor3f(*color)
-            glBegin(GL_LINES)
-            glVertex3f(start[0], start[1], start[2])
-            glVertex3f(end[0], end[1], end[2])
-            glEnd()
-            glEnable(GL_DEPTH_TEST)
-            glEnable(GL_LIGHTING)
-
-        def draw_point(pos, color, radius=4.5):
-            glDisable(GL_LIGHTING)
-            glDisable(GL_DEPTH_TEST)
-            glPushMatrix()
-            glTranslatef(pos[0], pos[1], pos[2])
-            glColor3f(*color)
-            gluSphere(self.quadric, radius, 8, 8)
-            glPopMatrix()
-            glEnable(GL_DEPTH_TEST)
-            glEnable(GL_LIGHTING)
-
-        bones = finger_data.get('bones')
-        if not bones:
-            bones = {
-                'metacarpal': finger_data.get('metacarpal'),
-                'proximal': finger_data.get('proximal'),
-                'intermediate': finger_data.get('intermediate'),
-                'distal': finger_data.get('distal'),
-            }
-        metacarpal = bones.get('metacarpal')
-        proximal = bones.get('proximal')
-        intermediate = bones.get('intermediate')
-
-        # MCP: metacarpal + proximal
-        if self.show_angle_mcp and self.angle_debug_mode == "mcp" and metacarpal and proximal:
-            m_start = to_rel(metacarpal['start'])
-            m_end = to_rel(metacarpal['end'])
-            p_start = to_rel(proximal['start'])
-            p_end = to_rel(proximal['end'])
-            draw_segment(m_start, m_end, (0.2, 0.9, 1.0), width=7.0)
-            draw_segment(p_start, p_end, (0.2, 0.9, 1.0), width=7.0)
-            draw_point(m_end, (0.2, 0.9, 1.0), radius=7.0)
-            draw_point(p_start, (0.2, 0.9, 1.0), radius=7.0)
-
-        # PIP: proximal + intermediate
-        if self.show_angle_pip and self.angle_debug_mode == "pip" and proximal and intermediate:
-            p_start = to_rel(proximal['start'])
-            p_end = to_rel(proximal['end'])
-            i_start = to_rel(intermediate['start'])
-            i_end = to_rel(intermediate['end'])
-            draw_segment(p_start, p_end, (1.0, 0.4, 0.1), width=7.0)
-            draw_segment(i_start, i_end, (1.0, 0.4, 0.1), width=7.0)
-            draw_point(p_end, (1.0, 0.4, 0.1), radius=7.0)
-            draw_point(i_start, (1.0, 0.4, 0.1), radius=7.0)
+        glPopMatrix() # Pop rotation and hand offset
 
     def update(self, dt: float):
         """Update animations."""
-        self.pulse_phase += dt * 0.15  # Animate pulse for highlighting
+        self.pulse_phase += dt * 0.15
 
     def _cleanup(self):
         """Clean up OpenGL resources."""
-        gluDeleteQuadric(self.quadric)
+        if hasattr(self, 'quadric'):
+            gluDeleteQuadric(self.quadric)
