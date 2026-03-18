@@ -267,6 +267,14 @@ class FingerInvaders:
         elif event.key == pygame.K_RETURN:
             if state == GameState.MENU:
                 self._handle_menu_selection()
+            elif state == ExtendedGameState.LAB_SESSION_MENU:
+                # ENTER works the same as SPACE on the lab session screen
+                next_game = self._get_next_lab_game()
+                if next_game:
+                    self._start_game(next_game)
+                elif self.player_manager.is_lab_session_complete():
+                    self.lab_session_active = False
+                    self.game_engine.state = GameState.MENU
         elif event.key == pygame.K_SPACE:
             if state == GameState.PAUSED:
                 self.game_engine.state = self.game_engine.previous_state

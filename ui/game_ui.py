@@ -635,14 +635,14 @@ class MenuUI:
         all_done = next_game is None
         if all_done:
             msg1 = self.fonts['medium'].render("All games complete!", True, (100, 255, 100))
-            msg2 = self.fonts['small'].render("Press SPACE to go to menu  →  Select 'Send Home'", True, WHITE)
+            msg2 = self.fonts['small'].render("Press ENTER to go to menu  →  Select 'Send Home'", True, WHITE)
             msg3 = self.fonts['small'].render("Press ESC to return to menu", True, GRAY)
             self.surface.blit(msg1, (WINDOW_WIDTH // 2 - msg1.get_width() // 2, 560))
             self.surface.blit(msg2, (WINDOW_WIDTH // 2 - msg2.get_width() // 2, 600))
             self.surface.blit(msg3, (WINDOW_WIDTH // 2 - msg3.get_width() // 2, 630))
         else:
             next_name = game_names.get(next_game.value, next_game.value)
-            msg = self.fonts['medium'].render(f"Press SPACE to start  {next_name}", True, WHITE)
+            msg = self.fonts['medium'].render(f"Press ENTER to start  {next_name}", True, WHITE)
             esc_msg = self.fonts['small'].render("Press ESC to return to main menu", True, GRAY)
             self.surface.blit(msg, (WINDOW_WIDTH // 2 - msg.get_width() // 2, 560))
             self.surface.blit(esc_msg, (WINDOW_WIDTH // 2 - esc_msg.get_width() // 2, 605))
