@@ -766,14 +766,6 @@ class FingerInvaders:
         highlighted_fingers = set(self.game_engine.get_highlighted_fingers())
         self.hand_renderer.set_hand_data(hand_data, finger_states, highlighted_fingers)
 
-        # Draw 2D angle bars and labels overlay on top (no hand shapes, 3D is below)
-        angles = self.hand_tracker.get_all_finger_angles()
-        self.old_hand_renderer.set_finger_angles(angles, self.calibration.baseline_angles)
-        if not self.old_hand_renderer.show_angle_bars:
-            self.old_hand_renderer.show_angle_bars = True
-        self.old_hand_renderer.draw_hand_shapes = False
-        self.old_hand_renderer.draw(hand_data, finger_states)
-
     def _render_egg_catcher(self):
         """Render the Egg Catcher game."""
         self.game_ui.draw_background()
@@ -792,14 +784,6 @@ class FingerInvaders:
         finger_states = self.hand_tracker.get_all_finger_states()
         highlighted_fingers = set(self.egg_catcher_game.get_highlighted_fingers())
         self.hand_renderer.set_hand_data(hand_data, finger_states, highlighted_fingers)
-
-        # Draw 2D angle bars and labels overlay on top (no hand shapes, 3D is below)
-        angles = self.hand_tracker.get_all_finger_angles()
-        self.old_hand_renderer.set_finger_angles(angles, self.calibration.baseline_angles)
-        if not self.old_hand_renderer.show_angle_bars:
-            self.old_hand_renderer.show_angle_bars = True
-        self.old_hand_renderer.draw_hand_shapes = False
-        self.old_hand_renderer.draw(hand_data, finger_states)
 
     def _render_ping_pong(self):
         """Render the Ping Pong game."""
@@ -823,14 +807,6 @@ class FingerInvaders:
         finger_states = self.hand_tracker.get_all_finger_states()
         highlighted_fingers = set(self.ping_pong_game.get_highlighted_fingers())
         self.hand_renderer.set_hand_data(hand_data, finger_states, highlighted_fingers)
-
-        # Draw 2D angle bars and labels overlay on top (no hand shapes, 3D is below)
-        angles = self.hand_tracker.get_all_finger_angles()
-        self.old_hand_renderer.set_finger_angles(angles, self.calibration.baseline_angles)
-        if not self.old_hand_renderer.show_angle_bars:
-            self.old_hand_renderer.show_angle_bars = True
-        self.old_hand_renderer.draw_hand_shapes = False
-        self.old_hand_renderer.draw(hand_data, finger_states)
 
     def _render_angle_test(self):
         """Render the angle test screen."""
