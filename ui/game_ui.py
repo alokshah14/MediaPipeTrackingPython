@@ -572,6 +572,72 @@ class MenuUI:
         inst_rect = inst.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 50))
         self.surface.blit(inst, inst_rect)
 
+    def draw_lab_session_menu(self, lab_game_order: List, lab_games_completed: List[str],
+                               lab_session_scores: Dict, next_game, player_name: str = ""):
+        """Draw the lab session progress screen shown between games."""
+        self.surface.fill(BACKGROUND)
+
+        # Header
+        header = self.fonts['large'].render("LAB SESSION", True, YELLOW)
+        self.surface.blit(header, (WINDOW_WIDTH // 2 - header.get_width() // 2, 60))
+
+        if player_name:
+            p = self.fonts['small'].render(f"Participant: {player_name}", True, (180, 180, 255))
+            self.surface.blit(p, (WINDOW_WIDTH // 2 - p.get_width() // 2, 115))
+
+        sub = self.fonts['medium'].render("5 minutes per game", True, GRAY)
+        self.surface.blit(sub, (WINDOW_WIDTH // 2 - sub.get_width() // 2, 145))
+
+        # Game progress rows
+        game_names = {
+            'finger_invaders': 'Finger Invaders',
+            'egg_catcher': 'Egg Catcher',
+            'ping_pong': 'Ping Pong',
+        }
+        start_y = 220
+        for i, gm in enumerate(lab_game_order):
+            y = start_y + i * 100
+            done = gm.value in lab_games_completed
+            is_next = next_game == gm
+
+            # Row background
+            box_color = (20, 60, 20) if done else ((40, 40, 80) if is_next else (20, 20, 40))
+            border_color = (80, 200, 80) if done else (YELLOW if is_next else (60, 60, 100))
+            pygame.draw.rect(self.surface, box_color, (WINDOW_WIDTH // 2 - 280, y, 560, 75), border_radius=10)
+            pygame.draw.rect(self.surface, border_color, (WINDOW_WIDTH // 2 - 280, y, 560, 75), 2, border_radius=10)
+
+            # Game number + name
+            label = f"Game {i + 1}:  {game_names.get(gm.value, gm.value)}"
+            color = (100, 220, 100) if done else (YELLOW if is_next else GRAY)
+            txt = self.fonts['medium'].render(label, True, color)
+            self.surface.blit(txt, (WINDOW_WIDTH // 2 - 240, y + 12))
+
+            # Status badge
+            if done:
+                score = lab_session_scores.get(gm.value, 0)
+                badge = self.fonts['small'].render(f"✓  Score: {score}", True, (100, 255, 100))
+            elif is_next:
+                badge = self.fonts['small'].render("▶  NEXT UP", True, YELLOW)
+            else:
+                badge = self.fonts['small'].render("○  Pending", True, GRAY)
+            self.surface.blit(badge, (WINDOW_WIDTH // 2 - 240, y + 46))
+
+        # Bottom action
+        all_done = next_game is None
+        if all_done:
+            msg1 = self.fonts['medium'].render("All games complete!", True, (100, 255, 100))
+            msg2 = self.fonts['small'].render("Press SPACE to go to menu  →  Select 'Send Home'", True, WHITE)
+            msg3 = self.fonts['small'].render("Press ESC to return to menu", True, GRAY)
+            self.surface.blit(msg1, (WINDOW_WIDTH // 2 - msg1.get_width() // 2, 560))
+            self.surface.blit(msg2, (WINDOW_WIDTH // 2 - msg2.get_width() // 2, 600))
+            self.surface.blit(msg3, (WINDOW_WIDTH // 2 - msg3.get_width() // 2, 630))
+        else:
+            next_name = game_names.get(next_game.value, next_game.value)
+            msg = self.fonts['medium'].render(f"Press SPACE to start  {next_name}", True, WHITE)
+            esc_msg = self.fonts['small'].render("Press ESC to return to main menu", True, GRAY)
+            self.surface.blit(msg, (WINDOW_WIDTH // 2 - msg.get_width() // 2, 560))
+            self.surface.blit(esc_msg, (WINDOW_WIDTH // 2 - esc_msg.get_width() // 2, 605))
+
     def draw_text_input(self, title: str, current_text: str, subtitle: str = ""):
         """Draw a text input screen."""
         self.surface.fill(BACKGROUND)

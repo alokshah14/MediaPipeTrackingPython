@@ -59,8 +59,11 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 
 # Add custom state for player name entry
+LAB_GAME_ORDER = [GameMode.FINGER_INVADERS, GameMode.EGG_CATCHER, GameMode.PING_PONG]
+
 class ExtendedGameState:
     SET_PLAYER_NAME = 'set_player_name'
+    LAB_SESSION_MENU = 'lab_session_menu'
 
 class FingerInvaders:
     """Main game application class."""
@@ -85,6 +88,8 @@ class FingerInvaders:
 
         # Admin mode (hidden from participants)
         self.admin_mode = False
+        self.lab_session_active = False
+        self._session_natural_end = False  # True only when timer expires (not ESC)
 
         pygame.display.gl_set_attribute(pygame.GL_DEPTH_SIZE, 24)
         pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
@@ -241,8 +246,13 @@ class FingerInvaders:
         if event.key == pygame.K_ESCAPE:
             if state in [GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG, GameState.PAUSED]:
                 self._end_session()
-                self.game_engine.state = GameState.MENU
+                if not self.lab_session_active:
+                    self.game_engine.state = GameState.MENU
+                # If lab active, _end_session already set state to LAB_SESSION_MENU
             elif state in [GameState.CALIBRATING, GameState.ANGLE_TEST, GameState.HIGH_SCORES, GameState.CALIBRATION_MENU]:
+                self.game_engine.state = GameState.MENU
+            elif state == ExtendedGameState.LAB_SESSION_MENU:
+                self.lab_session_active = False
                 self.game_engine.state = GameState.MENU
             elif state == GameState.MENU:
                 self.running = False
@@ -259,6 +269,14 @@ class FingerInvaders:
         elif event.key == pygame.K_SPACE:
             if state == GameState.PAUSED:
                 self.game_engine.state = self.game_engine.previous_state
+            elif state == ExtendedGameState.LAB_SESSION_MENU:
+                next_game = self._get_next_lab_game()
+                if next_game:
+                    self._start_game(next_game)
+                elif self.player_manager.is_lab_session_complete():
+                    # All done — go to menu where Send Home is now visible
+                    self.lab_session_active = False
+                    self.game_engine.state = GameState.MENU
             elif state == GameState.GAME_OVER:
                 self._start_game(self.game_engine.current_game_mode)
             elif state == GameState.CALIBRATION_MENU:
@@ -305,8 +323,12 @@ class FingerInvaders:
         elif selected == "Set Player Name":
             self.name_input_text = self.player_manager.player_name
             self.game_engine.state = ExtendedGameState.SET_PLAYER_NAME
+        elif selected == "Start Lab Session":
+            self.lab_session_active = True
+            self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
         elif selected == "Send Home":
             self.player_manager.start_home_study()
+            self.lab_session_active = False
         elif selected == "Angle Test":
             self.game_engine.state = GameState.ANGLE_TEST
         elif selected == "High Scores":
@@ -323,16 +345,21 @@ class FingerInvaders:
         if self.admin_mode:
             options.append("Set Player Name")
             if not self.player_manager.is_home_study:
-                options.append("Send Home")
+                if self.player_manager.is_lab_session_complete():
+                    # Lab done — offer Send Home and free play
+                    options.append("Send Home")
+                    options.extend(ALL_GAME_MODES)
+                else:
+                    # Lab not done — structured lab session
+                    options.append("Start Lab Session")
+            else:
+                # Home study active — free play for admin
+                options.extend(ALL_GAME_MODES)
+            options.append("High Scores")
 
         # Always available in simulation mode for testing
         if self.is_test_mode:
             options.append("Angle Test")
-
-        # Game options — admin bypasses daily session lock and sees all games
-        if self.admin_mode:
-            options.extend(ALL_GAME_MODES)
-            options.append("High Scores")
         elif not self.daily_session_manager.is_day_locked():
             info = self.daily_session_manager.get_current_segment_info()
             if info["segment_number"] == 5:
@@ -418,6 +445,7 @@ class FingerInvaders:
 
         # Check for game over (time-based)
         if game_state['remaining_time'] <= 0:
+            self._session_natural_end = True
             self.game_engine.state = GameState.GAME_OVER
             self._end_session()
 
@@ -442,6 +470,7 @@ class FingerInvaders:
 
         # Check for game over
         if self.egg_catcher_game.game_over:
+            self._session_natural_end = True
             self.game_engine.state = GameState.GAME_OVER
             self._end_session()
 
@@ -466,6 +495,7 @@ class FingerInvaders:
 
         # Check for game over
         if self.ping_pong_game.game_over:
+            self._session_natural_end = True
             self.game_engine.state = GameState.GAME_OVER
             self._end_session()
 
@@ -560,6 +590,15 @@ class FingerInvaders:
             )
         elif state == ExtendedGameState.SET_PLAYER_NAME:
             self.menu_ui.draw_text_input("ENTER PLAYER NAME", self.name_input_text, "Current: " + self.player_manager.player_name)
+        elif state == ExtendedGameState.LAB_SESSION_MENU:
+            next_game = self._get_next_lab_game()
+            self.menu_ui.draw_lab_session_menu(
+                lab_game_order=LAB_GAME_ORDER,
+                lab_games_completed=self.player_manager.lab_games_completed,
+                lab_session_scores=self.player_manager.lab_session_scores,
+                next_game=next_game,
+                player_name=self.player_manager.player_name,
+            )
         elif state == GameState.CALIBRATION_MENU:
             self.menu_ui.draw_calibration_menu(self.calibration.has_calibration())
         elif state == GameState.ANGLE_TEST:
@@ -840,6 +879,14 @@ class FingerInvaders:
         self.angle_test_baseline_source = "none"
         print("Baseline reset")
 
+    def _get_next_lab_game(self):
+        """Return the next unplayed lab game, or None if all done."""
+        completed = self.player_manager.lab_games_completed
+        for gm in LAB_GAME_ORDER:
+            if gm.value not in completed:
+                return gm
+        return None
+
     def _start_game(self, mode):
         self.game_engine.current_game_mode = mode
 
@@ -865,6 +912,16 @@ class FingerInvaders:
         self.daily_session_manager.update_segment_playtime(self.game_engine.current_game_mode, int(duration*1000), state['score'])
         # Accumulate cumulative playtime per game for admin stats
         self.player_manager.add_game_playtime(self.game_engine.current_game_mode.value, duration)
+
+        # Lab session: record game as completed if it ended naturally (timer expired)
+        if self.lab_session_active and self._session_natural_end:
+            self.player_manager.record_lab_game(self.game_engine.current_game_mode.value, state['score'])
+
+        # Always redirect to lab session menu when lab is active (natural end or ESC)
+        if self.lab_session_active:
+            self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
+
+        self._session_natural_end = False
 
     def _set_display_mode(self):
         if self.is_fullscreen:

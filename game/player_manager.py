@@ -1,9 +1,10 @@
 import json
 import os
 from datetime import datetime, date
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 PLAYER_CONFIG_FILE = "data/player_config.json"
+LAB_REQUIRED_GAMES = {'finger_invaders', 'egg_catcher', 'ping_pong'}
 
 class PlayerManager:
     """Manages player identity and longitudinal study tracking (Lab vs. Home)."""
@@ -14,6 +15,9 @@ class PlayerManager:
         self.is_home_study = False
         # Cumulative playtime in seconds per game mode (key = GameMode.value string)
         self.game_playtime_seconds: Dict[str, float] = {}
+        # Lab session: which games have been completed in the lab visit
+        self.lab_games_completed: List[str] = []
+        self.lab_session_scores: Dict[str, int] = {}
         self._load_config()
 
     def _load_config(self):
@@ -28,6 +32,8 @@ class PlayerManager:
                         self.home_start_date = date.fromisoformat(start_date_str)
                     self.is_home_study = data.get("is_home_study", False)
                     self.game_playtime_seconds = data.get("game_playtime_seconds", {})
+                    self.lab_games_completed = data.get("lab_games_completed", [])
+                    self.lab_session_scores = data.get("lab_session_scores", {})
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"Error loading player config: {e}")
 
@@ -38,6 +44,8 @@ class PlayerManager:
             "home_start_date": self.home_start_date.isoformat() if self.home_start_date else None,
             "is_home_study": self.is_home_study,
             "game_playtime_seconds": self.game_playtime_seconds,
+            "lab_games_completed": self.lab_games_completed,
+            "lab_session_scores": self.lab_session_scores,
         }
         os.makedirs(os.path.dirname(PLAYER_CONFIG_FILE), exist_ok=True)
         try:
@@ -51,6 +59,23 @@ class PlayerManager:
         if name and name.strip():
             self.player_name = name.strip().replace(" ", "_")
             self.save_config()
+
+    def record_lab_game(self, game_mode_value: str, score: int):
+        """Record a completed lab session game and save."""
+        if game_mode_value not in self.lab_games_completed:
+            self.lab_games_completed.append(game_mode_value)
+        self.lab_session_scores[game_mode_value] = score
+        self.save_config()
+
+    def is_lab_session_complete(self) -> bool:
+        """True when all 3 games have been played in the lab visit."""
+        return LAB_REQUIRED_GAMES.issubset(set(self.lab_games_completed))
+
+    def reset_lab_session(self):
+        """Clear lab session so it can be re-run (e.g. new participant)."""
+        self.lab_games_completed = []
+        self.lab_session_scores = {}
+        self.save_config()
 
     def start_home_study(self):
         """Mark the beginning of the home study period."""
