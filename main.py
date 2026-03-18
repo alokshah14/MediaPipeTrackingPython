@@ -939,7 +939,6 @@ class FingerInvaders:
         glTexCoord2f(0, v_max);   glVertex2f(0, self.game_height)
         glEnd()
         
-        glDeleteTextures(1, [texid])
         if area != "full": glDisable(GL_SCISSOR_TEST)
         glPopMatrix()
         glMatrixMode(GL_PROJECTION)
@@ -959,24 +958,30 @@ class FingerInvaders:
         def next_pow2(n):
             return 1 << math.ceil(math.log2(max(n, 1)))
 
-        # Clamp to driver's max texture size
         tw = min(next_pow2(orig_w), max_tex)
         th = min(next_pow2(orig_h), max_tex)
 
         if tw != orig_w or th != orig_h:
-            # Scale surface to fit the texture dimensions exactly
             scaled = pygame.transform.smoothscale(surface, (tw, th))
             data = pygame.image.tostring(scaled, "RGBA", False)
         else:
             data = pygame.image.tostring(surface, "RGBA", False)
 
-        texid = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, texid)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        # UV always spans 0→1 since surface was scaled to fill the texture exactly
-        return texid, 1.0, 1.0
+        # Reuse a single persistent texture instead of allocating one per frame
+        if not hasattr(self, '_overlay_texid') or self._overlay_tex_size != (tw, th):
+            if hasattr(self, '_overlay_texid'):
+                glDeleteTextures(1, [self._overlay_texid])
+            self._overlay_texid = glGenTextures(1)
+            self._overlay_tex_size = (tw, th)
+            glBindTexture(GL_TEXTURE_2D, self._overlay_texid)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        else:
+            glBindTexture(GL_TEXTURE_2D, self._overlay_texid)
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tw, th, GL_RGBA, GL_UNSIGNED_BYTE, data)
+
+        return self._overlay_texid, 1.0, 1.0
 
     def _cleanup(self):
         """Clean up resources before exit."""
