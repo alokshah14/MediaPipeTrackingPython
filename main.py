@@ -246,10 +246,15 @@ class FingerInvaders:
 
         if event.key == pygame.K_ESCAPE:
             if state in [GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG, GameState.PAUSED]:
+                self._session_natural_end = False
                 self._end_session()
-                if not self.lab_session_active:
+                # _end_session sets state to LAB_SESSION_MENU or MENU
+            elif state == GameState.GAME_OVER:
+                # Fallback: ESC on stuck GAME_OVER screen
+                if self.lab_session_active:
+                    self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
+                else:
                     self.game_engine.state = GameState.MENU
-                # If lab active, _end_session already set state to LAB_SESSION_MENU
             elif state in [GameState.CALIBRATING, GameState.ANGLE_TEST, GameState.HIGH_SCORES, GameState.CALIBRATION_MENU]:
                 self.game_engine.state = GameState.MENU
             elif state == ExtendedGameState.LAB_SESSION_MENU:
@@ -899,27 +904,64 @@ class FingerInvaders:
 
         self.session_start_time = pygame.time.get_ticks()
         self.game_start_tick = pygame.time.get_ticks()
+        self.total_paused_ms = 0
+        self._session_natural_end = False
         self.session_logger.start_session(self.calibration.calibration_data, mode.name)
 
-    def _end_session(self):
-        duration = (pygame.time.get_ticks() - self.session_start_time) / 1000.0
-        state = self.game_engine.get_game_state()
-        self.session_logger.end_session(state['score'], state['lives'], duration)
-        self.daily_session_manager.update_segment_playtime(self.game_engine.current_game_mode, int(duration*1000), state['score'])
-        # Accumulate cumulative playtime per game for admin stats
-        self.player_manager.add_game_playtime(self.game_engine.current_game_mode.value, duration)
+    def _get_current_game_state(self) -> dict:
+        """Get game state dict from the active game object (correct for EC/PP)."""
+        mode = self.game_engine.current_game_mode
+        if mode == GameMode.EGG_CATCHER:
+            return self.egg_catcher_game.get_game_state()
+        elif mode == GameMode.PING_PONG:
+            return self.ping_pong_game.get_game_state()
+        else:
+            return self.game_engine.get_game_state()
 
-        # Lab session tracking
+    def _end_session(self):
+        duration = (pygame.time.get_ticks() - self.session_start_time - self.total_paused_ms) / 1000.0
+        duration = max(0.0, duration)
+        score = 0
+
+        try:
+            game_state = self._get_current_game_state()
+            score = game_state.get('score', 0)
+            lives = game_state.get('lives', 0)
+        except Exception as e:
+            print(f"_end_session: error reading game state: {e}")
+            lives = 0
+
+        try:
+            self.session_logger.end_session(score, lives, duration)
+        except Exception as e:
+            print(f"_end_session: session_logger error: {e}")
+
+        try:
+            self.daily_session_manager.update_segment_playtime(
+                self.game_engine.current_game_mode, int(duration * 1000), score)
+        except Exception as e:
+            print(f"_end_session: daily_session_manager error: {e}")
+
+        try:
+            self.player_manager.add_game_playtime(
+                self.game_engine.current_game_mode.value, duration)
+        except Exception as e:
+            print(f"_end_session: player_manager playtime error: {e}")
+
+        # Lab session tracking — always runs even if above steps had errors
         if self.lab_session_active:
             gm_val = self.game_engine.current_game_mode.value
-            if self._session_natural_end:
-                # Full 5 min completed — mark done and clear elapsed
-                self.player_manager.record_lab_game(gm_val, state['score'])
-                self.lab_game_elapsed.pop(gm_val, None)
-            else:
-                # Early exit (ESC/pause) — save elapsed so they can resume
-                self.lab_game_elapsed[gm_val] = self.lab_game_elapsed.get(gm_val, 0.0) + duration
+            try:
+                if self._session_natural_end:
+                    self.player_manager.record_lab_game(gm_val, score)
+                    self.lab_game_elapsed.pop(gm_val, None)
+                else:
+                    self.lab_game_elapsed[gm_val] = self.lab_game_elapsed.get(gm_val, 0.0) + duration
+            except Exception as e:
+                print(f"_end_session: lab record error: {e}")
             self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
+        else:
+            self.game_engine.state = GameState.MENU
 
         self._session_natural_end = False
 
