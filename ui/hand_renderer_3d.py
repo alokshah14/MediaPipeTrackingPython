@@ -113,8 +113,8 @@ class OpenGLHandRenderer:
 
     def draw(self):
         """Draw the 3D hand visualization."""
-        # Save Pygame's current GL state
-        glPushAttrib(GL_ALL_ATTRIB_BITS)
+        # Save only the GL state bits we actually modify (much faster than GL_ALL_ATTRIB_BITS)
+        glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING_BIT | GL_COLOR_BUFFER_BIT | GL_VIEWPORT_BIT | GL_SCISSOR_BIT)
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glMatrixMode(GL_MODELVIEW)
@@ -278,7 +278,7 @@ class OpenGLHandRenderer:
         else:
             glColor3f(*tuple(c / 255.0 for c in HAND_COLOR))
         
-        gluSphere(self.quadric, palm_radius, 16, 16)
+        gluSphere(self.quadric, palm_radius, 8, 8)
         
         if is_ghost:
             glEnable(GL_LIGHTING)
@@ -353,15 +353,15 @@ class OpenGLHandRenderer:
                     glColor3f(*tuple(c / 255.0 for c in FINGER_NORMAL))
 
                 # Draw components
-                gluCylinder(self.quadric, bone_radius, bone_radius, bone_length, 10, 1)
-                gluSphere(self.quadric, bone_radius * 1.2, 10, 10)
+                gluCylinder(self.quadric, bone_radius, bone_radius, bone_length, 6, 1)
+                gluSphere(self.quadric, bone_radius * 1.2, 6, 6)
 
                 if bone_type == 'distal':
                     glPushMatrix()
                     glTranslatef(0, 0, bone_length)
                     tip_rad = bone_radius * (2.5 if is_highlighted else 1.8)
                     if is_ghost: glColor4f(0.5, 0.8, 1.0, 0.4)
-                    gluSphere(self.quadric, tip_rad, 12, 12)
+                    gluSphere(self.quadric, tip_rad, 8, 8)
                     glPopMatrix()
 
                 if is_ghost:

@@ -1024,7 +1024,6 @@ class FingerInvaders:
         # Query GPU limit once and cache it
         if not hasattr(self, '_gl_max_texture_size'):
             self._gl_max_texture_size = int(glGetIntegerv(GL_MAX_TEXTURE_SIZE))
-            print(f"GL_MAX_TEXTURE_SIZE: {self._gl_max_texture_size}")
         max_tex = self._gl_max_texture_size
 
         def next_pow2(n):
@@ -1033,13 +1032,17 @@ class FingerInvaders:
         tw = min(next_pow2(orig_w), max_tex)
         th = min(next_pow2(orig_h), max_tex)
 
-        if tw != orig_w or th != orig_h:
-            scaled = pygame.transform.smoothscale(surface, (tw, th))
-            data = pygame.image.tostring(scaled, "RGBA", False)
-        else:
-            data = pygame.image.tostring(surface, "RGBA", False)
+        # Pre-allocate a padded power-of-2 staging surface once — no scaling needed
+        if not hasattr(self, '_staging_surface') or self._staging_surface.get_size() != (tw, th):
+            self._staging_surface = pygame.Surface((tw, th), pygame.SRCALPHA)
+            self._staging_uv = (orig_w / tw, orig_h / th)
 
-        # Reuse a single persistent texture instead of allocating one per frame
+        # Blit game surface into top-left of staging surface (fast copy, no interpolation)
+        self._staging_surface.fill((0, 0, 0, 0))
+        self._staging_surface.blit(surface, (0, 0))
+        data = pygame.image.tostring(self._staging_surface, "RGBA", False)
+
+        # Reuse a single persistent texture
         if not hasattr(self, '_overlay_texid') or self._overlay_tex_size != (tw, th):
             if hasattr(self, '_overlay_texid'):
                 glDeleteTextures(1, [self._overlay_texid])
@@ -1053,7 +1056,7 @@ class FingerInvaders:
             glBindTexture(GL_TEXTURE_2D, self._overlay_texid)
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tw, th, GL_RGBA, GL_UNSIGNED_BYTE, data)
 
-        return self._overlay_texid, 1.0, 1.0
+        return self._overlay_texid, self._staging_uv[0], self._staging_uv[1]
 
     def _cleanup(self):
         """Clean up resources before exit."""

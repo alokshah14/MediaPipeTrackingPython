@@ -59,6 +59,19 @@ class HandRenderer:
         self.clean_trial_text = ""  # "CLEAN", "PERFECT", etc.
         self.clean_trial_mlr = 0.0  # MLR value to display
 
+        # Cached fonts — created once, reused every frame
+        self._fonts = {
+            18: pygame.font.Font(None, 18),
+            20: pygame.font.Font(None, 20),
+            24: pygame.font.Font(None, 24),
+            28: pygame.font.Font(None, 28),
+            36: pygame.font.Font(None, 36),
+            48: pygame.font.Font(None, 48),
+            64: pygame.font.Font(None, 64),
+            72: pygame.font.Font(None, 72),
+            120: pygame.font.Font(None, 120),
+        }
+
     def set_highlighted_fingers(self, fingers: List[str]):
         """
         Set which fingers should be highlighted.
@@ -137,7 +150,7 @@ class HandRenderer:
             )
 
             # Draw label
-            font = pygame.font.Font(None, 28)
+            font = self._fonts[28]
             label = font.render("Hand Tracking", True, (150, 150, 200))
             self.surface.blit(label, (WINDOW_WIDTH // 2 - label.get_width() // 2, self.hand_area_top - 5))
 
@@ -166,7 +179,7 @@ class HandRenderer:
             alpha = min(255, int(remaining / 1500 * 255 * 2))  # Fade out
 
             # Draw the text
-            font = pygame.font.Font(None, 64)
+            font = self._fonts[64]
 
             # Choose color based on rating
             if "PERFECT" in self.clean_trial_text:
@@ -183,7 +196,7 @@ class HandRenderer:
             self.surface.blit(text_surface, text_rect)
 
             # Show MLR value below
-            mlr_font = pygame.font.Font(None, 28)
+            mlr_font = self._fonts[28]
             mlr_text = f"MLR: {self.clean_trial_mlr:.2%}"
             mlr_surface = mlr_font.render(mlr_text, True, (200, 200, 200))
             mlr_rect = mlr_surface.get_rect(center=(WINDOW_WIDTH // 2, 135))
@@ -264,20 +277,20 @@ class HandRenderer:
         pygame.draw.circle(self.surface, GRAY, center, PALM_RADIUS, 2)
 
         # Draw X
-        font = pygame.font.Font(None, 48)
+        font = self._fonts[48]
         text = font.render("?", True, GRAY)
         text_rect = text.get_rect(center=center)
         self.surface.blit(text, text_rect)
 
         # Label
-        label_font = pygame.font.Font(None, 24)
+        label_font = self._fonts[24]
         label = label_font.render(f"{hand_type.upper()} HAND NOT DETECTED", True, GRAY)
         label_rect = label.get_rect(center=(center[0], center[1] + PALM_RADIUS + 20))
         self.surface.blit(label, label_rect)
 
     def _draw_finger_labels(self):
         """Draw labels for each finger lane."""
-        font = pygame.font.Font(None, 20)
+        font = self._fonts[20]
         y = self.hand_area_top + self.hand_area_height - 15
 
         for i, (name, display) in enumerate(zip(FINGER_NAMES, FINGER_DISPLAY_NAMES)):
@@ -301,7 +314,7 @@ class HandRenderer:
         # Position bars at bottom of game area (above 3D hands)
         bar_y = GAME_AREA_BOTTOM - bar_height - 10
 
-        font = pygame.font.Font(None, 18)
+        font = self._fonts[18]
         threshold_angle = 30.0  # The press threshold
         max_display_angle = 60.0
 
@@ -407,11 +420,11 @@ class CalibrationHandRenderer(HandRenderer):
         bar_y = GAME_AREA_BOTTOM + 50
 
         phase = status.get('phase', 'idle')
-        font = pygame.font.Font(None, 24)
-        large_font = pygame.font.Font(None, 72)
+        font = self._fonts[24]
+        large_font = self._fonts[72]
 
         # Instructions
-        inst_font = pygame.font.Font(None, 36)
+        inst_font = self._fonts[36]
         inst_text = inst_font.render(instructions, True, (255, 255, 100))
         self.surface.blit(inst_text, (WINDOW_WIDTH // 2 - inst_text.get_width() // 2, bar_y - 40))
 
@@ -484,7 +497,7 @@ class CalibrationHandRenderer(HandRenderer):
         hold_progress = status.get('hold_progress', 0.0)
 
         # Draw large angle number
-        large_font = pygame.font.Font(None, 120)
+        large_font = self._fonts[120]
         angle_color = (100, 255, 100) if angle >= threshold else WHITE
         if threshold_reached:
             angle_color = (100, 255, 100)
@@ -494,12 +507,12 @@ class CalibrationHandRenderer(HandRenderer):
         self.surface.blit(angle_render, (gauge_x - angle_render.get_width() // 2, gauge_y - 60))
 
         # Draw "degrees" label
-        small_font = pygame.font.Font(None, 36)
+        small_font = self._fonts[36]
         deg_text = small_font.render("degrees", True, (150, 150, 200))
         self.surface.blit(deg_text, (gauge_x - deg_text.get_width() // 2, gauge_y + 50))
 
         # Draw threshold indicator
-        threshold_font = pygame.font.Font(None, 28)
+        threshold_font = self._fonts[28]
         threshold_text = f"Target: {threshold:.0f} degrees"
         threshold_render = threshold_font.render(threshold_text, True, (200, 200, 100))
         self.surface.blit(threshold_render, (gauge_x - threshold_render.get_width() // 2, gauge_y + 85))
