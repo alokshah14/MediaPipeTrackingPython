@@ -573,8 +573,11 @@ class MenuUI:
         self.surface.blit(inst, inst_rect)
 
     def draw_lab_session_menu(self, lab_game_order: List, lab_games_completed: List[str],
-                               lab_session_scores: Dict, next_game, player_name: str = ""):
+                               lab_session_scores: Dict, next_game, player_name: str = "",
+                               lab_game_elapsed: Dict = None):
         """Draw the lab session progress screen shown between games."""
+        if lab_game_elapsed is None:
+            lab_game_elapsed = {}
         self.surface.fill(BACKGROUND)
 
         # Header
@@ -617,7 +620,13 @@ class MenuUI:
                 score = lab_session_scores.get(gm.value, 0)
                 badge = self.fonts['small'].render(f"✓  Score: {score}", True, (100, 255, 100))
             elif is_next:
-                badge = self.fonts['small'].render("▶  NEXT UP", True, YELLOW)
+                elapsed = lab_game_elapsed.get(gm.value, 0.0)
+                if elapsed > 0:
+                    remaining_s = max(0, 300 - elapsed)
+                    mins, secs = int(remaining_s) // 60, int(remaining_s) % 60
+                    badge = self.fonts['small'].render(f"▶  RESUME  ({mins}:{secs:02d} remaining)", True, YELLOW)
+                else:
+                    badge = self.fonts['small'].render("▶  NEXT UP", True, YELLOW)
             else:
                 badge = self.fonts['small'].render("○  Pending", True, GRAY)
             self.surface.blit(badge, (WINDOW_WIDTH // 2 - 240, y + 46))

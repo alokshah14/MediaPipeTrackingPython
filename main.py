@@ -90,6 +90,7 @@ class FingerInvaders:
         self.admin_mode = False
         self.lab_session_active = False
         self._session_natural_end = False  # True only when timer expires (not ESC)
+        self.lab_game_elapsed: dict = {}  # game_mode.value -> seconds played so far in lab
 
         pygame.display.gl_set_attribute(pygame.GL_DEPTH_SIZE, 24)
         pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
@@ -598,6 +599,7 @@ class FingerInvaders:
                 lab_session_scores=self.player_manager.lab_session_scores,
                 next_game=next_game,
                 player_name=self.player_manager.player_name,
+                lab_game_elapsed=self.lab_game_elapsed,
             )
         elif state == GameState.CALIBRATION_MENU:
             self.menu_ui.draw_calibration_menu(self.calibration.has_calibration())
@@ -890,19 +892,28 @@ class FingerInvaders:
     def _start_game(self, mode):
         self.game_engine.current_game_mode = mode
 
-        # Set multi-press window based on game mode for optimal responsiveness
+        # How much time has already been spent on this lab game (for resume)
+        prior_seconds = self.lab_game_elapsed.get(mode.value, 0.0) if self.lab_session_active else 0.0
+
+        # Reset and (re)start the correct game object, restoring prior elapsed time
         if mode == GameMode.FINGER_INVADERS:
             self.game_engine.state = GameState.FINGER_INVADERS
+            self.game_engine.start_game()
+            self.game_engine.set_previous_time(prior_seconds)
             self.hand_tracker.set_multi_press_window_ms(FINGER_INVADERS_MULTI_PRESS_WINDOW_MS)
         elif mode == GameMode.EGG_CATCHER:
             self.game_engine.state = GameState.EGG_CATCHER
+            self.egg_catcher_game.start_game()
+            self.egg_catcher_game.set_previous_time(prior_seconds)
             self.hand_tracker.set_multi_press_window_ms(EGG_CATCHER_MULTI_PRESS_WINDOW_MS)
         elif mode == GameMode.PING_PONG:
             self.game_engine.state = GameState.PING_PONG
+            self.ping_pong_game.start_game()
+            self.ping_pong_game.set_previous_time(prior_seconds)
             self.hand_tracker.set_multi_press_window_ms(PING_PONG_MULTI_PRESS_WINDOW_MS)
 
         self.session_start_time = pygame.time.get_ticks()
-        self.game_start_tick = pygame.time.get_ticks()  # Track when game started
+        self.game_start_tick = pygame.time.get_ticks()
         self.session_logger.start_session(self.calibration.calibration_data, mode.name)
 
     def _end_session(self):
@@ -913,12 +924,16 @@ class FingerInvaders:
         # Accumulate cumulative playtime per game for admin stats
         self.player_manager.add_game_playtime(self.game_engine.current_game_mode.value, duration)
 
-        # Lab session: record game as completed if it ended naturally (timer expired)
-        if self.lab_session_active and self._session_natural_end:
-            self.player_manager.record_lab_game(self.game_engine.current_game_mode.value, state['score'])
-
-        # Always redirect to lab session menu when lab is active (natural end or ESC)
+        # Lab session tracking
         if self.lab_session_active:
+            gm_val = self.game_engine.current_game_mode.value
+            if self._session_natural_end:
+                # Full 5 min completed — mark done and clear elapsed
+                self.player_manager.record_lab_game(gm_val, state['score'])
+                self.lab_game_elapsed.pop(gm_val, None)
+            else:
+                # Early exit (ESC/pause) — save elapsed so they can resume
+                self.lab_game_elapsed[gm_val] = self.lab_game_elapsed.get(gm_val, 0.0) + duration
             self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
 
         self._session_natural_end = False
