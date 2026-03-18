@@ -354,12 +354,13 @@ class FingerInvaders:
         if self.admin_mode:
             options.append("Set Player Name")
             if not self.player_manager.is_home_study:
+                # Always show Send Home so admin can send home early if needed
+                options.append("Send Home")
                 if self.player_manager.is_lab_session_complete():
-                    # Lab done — offer Send Home and free play
-                    options.append("Send Home")
+                    # Lab done — free play available
                     options.extend(ALL_GAME_MODES)
                 else:
-                    # Lab not done — structured lab session
+                    # Lab in progress — structured session
                     options.append("Start Lab Session")
             else:
                 # Home study active — free play for admin
