@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 from game.constants import GameMode, ALL_GAME_MODES, SESSION_SEGMENT_DURATION
 from .player_manager import PlayerManager
 
-DAILY_SESSION_FILE = "data/daily_session_state.json"
+_LEGACY_DAILY_SESSION_FILE = "data/daily_session_state.json"
+
+
+def _daily_session_path(player_name: str) -> str:
+    from .player_manager import PLAYERS_DIR
+    return os.path.join(PLAYERS_DIR, player_name, "daily_session.json")
 
 @dataclass
 class DailySessionState:
@@ -51,23 +56,49 @@ class DailySessionState:
 class DailySessionManager:
     def __init__(self, player_manager: PlayerManager):
         self.player_manager = player_manager
+        self._migrate_legacy_session()
         self.state: DailySessionState = self._load_daily_state()
         self._check_for_new_day()
 
+    def _daily_file(self) -> str:
+        return _daily_session_path(self.player_manager.player_name)
+
+    def _migrate_legacy_session(self):
+        """One-time migration of old global daily_session_state.json."""
+        if not os.path.exists(_LEGACY_DAILY_SESSION_FILE):
+            return
+        try:
+            dest = self._daily_file()
+            if not os.path.exists(dest):
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                import shutil
+                shutil.copy2(_LEGACY_DAILY_SESSION_FILE, dest)
+                print(f"Migrated legacy daily session to {dest}")
+            os.rename(_LEGACY_DAILY_SESSION_FILE, _LEGACY_DAILY_SESSION_FILE + ".migrated")
+        except Exception as e:
+            print(f"Legacy daily session migration failed (non-fatal): {e}")
+
+    def reload_for_player(self):
+        """Reload daily session state for the current player_manager.player_name."""
+        self.state = self._load_daily_state()
+        self._check_for_new_day()
+
     def _load_daily_state(self) -> DailySessionState:
-        if os.path.exists(DAILY_SESSION_FILE):
+        path = self._daily_file()
+        if os.path.exists(path):
             try:
-                with open(DAILY_SESSION_FILE, 'r') as f:
+                with open(path, 'r') as f:
                     data = json.load(f)
                     return DailySessionState.from_json(data)
             except (json.JSONDecodeError, FileNotFoundError) as e:
                 print(f"Error loading daily session state: {e}. Starting fresh.")
-        return DailySessionState() # Return default empty state
+        return DailySessionState()
 
     def _save_daily_state(self):
+        path = self._daily_file()
         try:
-            os.makedirs(os.path.dirname(DAILY_SESSION_FILE), exist_ok=True)
-            with open(DAILY_SESSION_FILE, 'w') as f:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
                 json.dump(self.state.to_json(), f, indent=2)
         except IOError as e:
             print(f"Error saving daily session state: {e}")

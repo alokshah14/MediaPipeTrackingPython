@@ -232,8 +232,7 @@ class FingerInvaders:
         if state == ExtendedGameState.SET_PLAYER_NAME:
             if event.key == pygame.K_RETURN:
                 if self.name_input_text.strip():
-                    self.player_manager.set_player_name(self.name_input_text)
-                    self.session_logger.set_player_name(self.player_manager.player_name)
+                    self._switch_player(self.name_input_text)
                     self.game_engine.state = GameState.MENU
             elif event.key == pygame.K_ESCAPE:
                 self.game_engine.state = GameState.MENU
@@ -351,6 +350,17 @@ class FingerInvaders:
             self.running = False
         elif isinstance(selected, GameMode):
             self._start_game(selected)
+
+    def _switch_player(self, name: str):
+        """Load (or create) a player by name, reloading all per-player state."""
+        self.player_manager.load_player(name)
+        self.session_logger.set_player_name(self.player_manager.player_name)
+        self.daily_session_manager.reload_for_player()
+        # Reset any in-progress lab state so the new player starts clean
+        self.lab_session_active = False
+        self.lab_game_elapsed = {}
+        self._session_natural_end = False
+        print(f"Player switched to: {self.player_manager.player_name}")
 
     def _get_menu_options(self) -> List:
         options = ["Calibrate"]
@@ -604,7 +614,11 @@ class FingerInvaders:
                 admin_playtime=playtime_display,
             )
         elif state == ExtendedGameState.SET_PLAYER_NAME:
-            self.menu_ui.draw_text_input("ENTER PLAYER NAME", self.name_input_text, "Current: " + self.player_manager.player_name)
+            known = self.player_manager.list_players()
+            subtitle = "Current: " + self.player_manager.player_name
+            if known:
+                subtitle += "   |   Known: " + ", ".join(known)
+            self.menu_ui.draw_text_input("ENTER PLAYER NAME", self.name_input_text, subtitle)
         elif state == ExtendedGameState.LAB_SESSION_MENU:
             next_game = self._get_next_lab_game()
             self.menu_ui.draw_lab_session_menu(
