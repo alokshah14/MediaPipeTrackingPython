@@ -160,9 +160,9 @@ class DailySessionManager:
                 return [self.state.lowest_score_game]
             else:
                 return [] 
-        elif self.state.current_segment == 5:
+        elif self.state.current_segment >= 5:
             return ALL_GAME_MODES
-        
+
         return []
 
     def get_current_segment_info(self) -> Dict:
@@ -187,10 +187,10 @@ class DailySessionManager:
                 message = f"Play your lowest-scoring game: {segment_game.name.replace('_', ' ').title()} for 5 minutes."
             else:
                 message = "Determining lowest scoring game..." 
-        elif self.state.current_segment == 5:
-            segment_game = None 
-            message = "Final session: Play any game for 5 minutes!"
-        
+        elif self.state.current_segment >= 5:
+            segment_game = None
+            message = "Free play! Play any game for the rest of the day."
+
         time_remaining_ms = max(0, SESSION_SEGMENT_DURATION - self.state.segment_playtime_ms)
         
         return {
@@ -205,33 +205,34 @@ class DailySessionManager:
         if self.state.is_locked_for_day:
             return
 
-        if not (self.state.current_segment == 5 and game_mode_played in ALL_GAME_MODES) and \
-           not (self.state.current_segment <= 3 and game_mode_played == self.state.daily_game_order[self.state.current_segment - 1]) and \
+        # Segment 5+ is unlimited free play — no timer, no locking, day resets naturally tomorrow
+        if self.state.current_segment >= 5:
+            self._save_daily_state()
+            return
+
+        if not (self.state.current_segment <= 3 and game_mode_played == self.state.daily_game_order[self.state.current_segment - 1]) and \
            not (self.state.current_segment == 4 and game_mode_played == self.state.lowest_score_game):
             print(f"Warning: Playtime for {game_mode_played.name} updated, but it's not the expected game for segment {self.state.current_segment}.")
             return
-            
+
         self.state.segment_playtime_ms += elapsed_ms
 
         if self.state.segment_playtime_ms >= SESSION_SEGMENT_DURATION:
-            self.state.segment_playtime_ms = SESSION_SEGMENT_DURATION 
+            self.state.segment_playtime_ms = SESSION_SEGMENT_DURATION
 
-            if self.state.current_segment <= 4:
-                self.state.segment_scores[game_mode_played.value] = current_score
+            self.state.segment_scores[game_mode_played.value] = current_score
 
             self.state.current_segment += 1
-            self.state.segment_playtime_ms = 0 
+            self.state.segment_playtime_ms = 0
 
             if self.state.current_segment == 4:
                 if len(self.state.segment_scores) >= 3:
                     self._determine_lowest_score_game()
                 else:
                     print("Warning: Not all 3 segment scores recorded for lowest score calculation.")
-                    self.state.lowest_score_game = random.choice(ALL_GAME_MODES) 
-                self.state.game_progression_track[3] = self.state.lowest_score_game 
-
-            elif self.state.current_segment > 5:
-                self.state.is_locked_for_day = True
+                    self.state.lowest_score_game = random.choice(ALL_GAME_MODES)
+                self.state.game_progression_track[3] = self.state.lowest_score_game
+            # Segment 5 = free play: no timer, no lock (handled by early return above on next call)
 
         self._save_daily_state()
 

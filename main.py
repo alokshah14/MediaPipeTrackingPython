@@ -387,7 +387,7 @@ class FingerInvaders:
             options.append("Angle Test")
         elif not self.daily_session_manager.is_day_locked():
             info = self.daily_session_manager.get_current_segment_info()
-            if info["segment_number"] == 5:
+            if info["segment_number"] >= 5:
                 options.extend(ALL_GAME_MODES)
             elif info["current_game"]:
                 options.append(info["current_game"])
