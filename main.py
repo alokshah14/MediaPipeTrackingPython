@@ -6,10 +6,37 @@ Finger Invaders - A Leap Motion finger individuation game.
 import pygame
 import sys
 import os
+import json
 import atexit
 import threading
 import argparse
 from typing import Optional, Dict, List, Set
+
+# ---------------------------------------------------------------------------
+# Last-player persistence helpers
+# ---------------------------------------------------------------------------
+_LAST_PLAYER_FILE = os.path.join("data", "last_player.json")
+
+
+def _save_last_player(name: str) -> None:
+    """Persist the active player name so the next launch restores it."""
+    try:
+        os.makedirs("data", exist_ok=True)
+        with open(_LAST_PLAYER_FILE, "w") as f:
+            json.dump({"player_name": name}, f)
+    except Exception as e:
+        print(f"Could not save last player: {e}")
+
+
+def _load_last_player() -> Optional[str]:
+    """Return the player name saved by the previous session, or None."""
+    try:
+        if os.path.exists(_LAST_PLAYER_FILE):
+            with open(_LAST_PLAYER_FILE, "r") as f:
+                return json.load(f).get("player_name")
+    except Exception as e:
+        print(f"Could not load last player: {e}")
+    return None
 
 # PyInstaller bundle handling
 if getattr(sys, 'frozen', False):
@@ -104,6 +131,10 @@ class FingerInvaders:
 
         # Initialize Managers
         self.player_manager = PlayerManager()
+        # Restore the player that was active in the previous session
+        _last = _load_last_player()
+        if _last and _last != self.player_manager.player_name:
+            self.player_manager.load_player(_last)
         self.high_score_manager = HighScoreManager()
         self.daily_session_manager = DailySessionManager(self.player_manager)
         self.reward_manager = RewardManager()
@@ -341,6 +372,7 @@ class FingerInvaders:
             self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
         elif selected == "Send Home":
             self.player_manager.start_home_study()
+            _save_last_player(self.player_manager.player_name)
             self.lab_session_active = False
         elif selected == "Angle Test":
             self.game_engine.state = GameState.ANGLE_TEST
@@ -354,6 +386,7 @@ class FingerInvaders:
     def _switch_player(self, name: str):
         """Load (or create) a player by name, reloading all per-player state."""
         self.player_manager.load_player(name)
+        _save_last_player(self.player_manager.player_name)
         self.session_logger.set_player_name(self.player_manager.player_name)
         self.daily_session_manager.reload_for_player()
         # Reset any in-progress lab state so the new player starts clean
@@ -896,8 +929,19 @@ class FingerInvaders:
     def _start_game(self, mode):
         self.game_engine.current_game_mode = mode
 
-        # How much time has already been spent on this lab game (for resume)
-        prior_seconds = self.lab_game_elapsed.get(mode.value, 0.0) if self.lab_session_active else 0.0
+        # How much time has already been spent on this game (for resume).
+        # Lab sessions track elapsed time per game in lab_game_elapsed.
+        # Home-study sessions track it via the daily segment playtime counter.
+        if self.lab_session_active:
+            prior_seconds = self.lab_game_elapsed.get(mode.value, 0.0)
+        elif self.player_manager.is_home_study:
+            seg_info = self.daily_session_manager.get_current_segment_info()
+            if seg_info.get("current_game") == mode:
+                prior_seconds = self.daily_session_manager.state.segment_playtime_ms / 1000.0
+            else:
+                prior_seconds = 0.0
+        else:
+            prior_seconds = 0.0
 
         # Reset and (re)start the correct game object, restoring prior elapsed time
         if mode == GameMode.FINGER_INVADERS:
