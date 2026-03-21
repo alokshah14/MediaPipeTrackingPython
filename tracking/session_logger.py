@@ -13,7 +13,10 @@ if TYPE_CHECKING:
 class SessionLogger:
     """Logs all finger presses and hand tracking data during a game session."""
 
-    def __init__(self, log_directory: str = "data/session_logs"):
+    def __init__(self, log_directory: str = None):
+        if log_directory is None:
+            from game.constants import DATA_DIR
+            log_directory = os.path.join(DATA_DIR, "session_logs")
         """
         Initialize the session logger.
 

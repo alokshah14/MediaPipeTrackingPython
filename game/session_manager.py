@@ -5,10 +5,10 @@ from datetime import datetime, date
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
-from game.constants import GameMode, ALL_GAME_MODES, SESSION_SEGMENT_DURATION
+from game.constants import GameMode, ALL_GAME_MODES, SESSION_SEGMENT_DURATION, DATA_DIR
 from .player_manager import PlayerManager
 
-_LEGACY_DAILY_SESSION_FILE = "data/daily_session_state.json"
+_LEGACY_DAILY_SESSION_FILE = os.path.join(DATA_DIR, "daily_session_state.json")
 
 
 def _daily_session_path(player_name: str) -> str:

@@ -1,4 +1,11 @@
 """Game constants and configuration settings."""
+import os
+
+# ---------------------------------------------------------------------------
+# Data directory — change this one line to move ALL saved data elsewhere.
+# Can be an absolute path (e.g. r"C:\MyStudy\data") or a relative path.
+# ---------------------------------------------------------------------------
+DATA_DIR = "data"
 
 # Window settings
 WINDOW_WIDTH = 1400
@@ -80,7 +87,7 @@ CORRECT_HITS_TO_INCREASE = 5  # Correct hits needed to increase difficulty
 WRONG_HITS_TO_DECREASE = 3    # Wrong hits needed to decrease difficulty
 
 # Calibration settings
-CALIBRATION_FILE = 'calibration_data.json'
+CALIBRATION_FILE = os.path.join(DATA_DIR, 'calibration_data.json')
 FINGER_PRESS_THRESHOLD = 0.3  # Default threshold (calibration will override)
 FINGER_PRESS_ANGLE_THRESHOLD = 30  # Degrees of flexion to consider finger pressed
 PRESS_DEBOUNCE_TIME = 200  # ms between registered presses

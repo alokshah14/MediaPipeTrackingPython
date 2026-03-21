@@ -2,9 +2,11 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 
+from .constants import DATA_DIR
+
 
 class RewardManager:
-    REWARDS_FILE = "data/rewards.json"
+    REWARDS_FILE = os.path.join(DATA_DIR, "rewards.json")
     REWARDS_CONFIG = [
         {"name": "Bronze Player", "threshold_playtime_seconds": 60 * 5, "type": "skin", "value": "bronze_skin"},
         {"name": "Silver Player", "threshold_playtime_seconds": 60 * 15, "type": "skin", "value": "silver_skin"},

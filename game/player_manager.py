@@ -3,11 +3,13 @@ import os
 from datetime import datetime, date
 from typing import Optional, Dict, List
 
-PLAYERS_DIR = "data/players"
+from .constants import DATA_DIR
+
+PLAYERS_DIR = os.path.join(DATA_DIR, "players")
 LAB_REQUIRED_GAMES = {'finger_invaders', 'egg_catcher', 'ping_pong'}
 
 # Legacy single-file path — used for one-time migration only
-_LEGACY_CONFIG_FILE = "data/player_config.json"
+_LEGACY_CONFIG_FILE = os.path.join(DATA_DIR, "player_config.json")
 
 
 def _player_config_path(name: str) -> str:

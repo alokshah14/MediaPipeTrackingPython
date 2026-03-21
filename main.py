@@ -15,7 +15,8 @@ from typing import Optional, Dict, List, Set
 # ---------------------------------------------------------------------------
 # Last-player persistence helpers
 # ---------------------------------------------------------------------------
-_LAST_PLAYER_FILE = os.path.join("data", "last_player.json")
+from game.constants import DATA_DIR
+_LAST_PLAYER_FILE = os.path.join(DATA_DIR, "last_player.json")
 
 
 def _save_last_player(name: str) -> None:

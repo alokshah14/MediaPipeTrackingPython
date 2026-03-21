@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
-from .constants import GameMode # Import GameMode
+from .constants import GameMode, DATA_DIR
 
 @dataclass
 class HighScoreEntry:
@@ -24,7 +24,10 @@ class HighScoreManager:
 
     MAX_SCORES_PER_MODE = 10  # Keep top 10 for each game mode
 
-    def __init__(self, filepath: str = "data/high_scores.json"):
+    def __init__(self, filepath: str = None):
+        if filepath is None:
+            import os
+            filepath = os.path.join(DATA_DIR, "high_scores.json")
         """
         Initialize the high score manager.
 

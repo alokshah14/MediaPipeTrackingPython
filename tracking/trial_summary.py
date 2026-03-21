@@ -82,7 +82,10 @@ class SessionSummary:
 class TrialSummaryExporter:
     """Exports trial data to clean CSV and JSON formats."""
 
-    def __init__(self, output_directory: str = "data/session_logs"):
+    def __init__(self, output_directory: str = None):
+        if output_directory is None:
+            from game.constants import DATA_DIR
+            output_directory = os.path.join(DATA_DIR, "session_logs")
         """
         Initialize the exporter.
 
