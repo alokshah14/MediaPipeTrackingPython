@@ -119,15 +119,13 @@ class DailySessionManager:
         is_week_one = self.player_manager.is_home_study and self.player_manager.get_days_since_start() < 7
         
         if is_week_one:
-            print("Enforcing Week 1 Fixed Order: Invaders -> Egg -> Pong")
-            # Fixed order as requested
-            self.state.daily_game_order = [
-                GameMode.FINGER_INVADERS,
-                GameMode.EGG_CATCHER,
-                GameMode.PING_PONG
-            ]
+            # Week 1: Finger Invaders is always first; the other two are randomized
+            others = [GameMode.EGG_CATCHER, GameMode.PING_PONG]
+            random.shuffle(others)
+            self.state.daily_game_order = [GameMode.FINGER_INVADERS] + others
+            print(f"Week 1: Finger Invaders first, then {others[0].name}, {others[1].name}")
         else:
-            # Randomize for Lab or Week 2+
+            # Week 2+: fully randomized
             random.shuffle(main_games)
             self.state.daily_game_order = main_games
         
