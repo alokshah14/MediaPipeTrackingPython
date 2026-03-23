@@ -453,6 +453,7 @@ class MenuUI:
         }
         self.selected_option = 0
         self.animation_phase = 0
+        self._calibration_skip_applied = False
 
     def update(self, dt: float = 1.0):
         """Update animations."""
@@ -475,6 +476,13 @@ class MenuUI:
             player_name: Name of the current player.
             study_status: String describing study progress.
         """
+        # If calibration already exists, skip "Calibrate" as the default selection
+        # so participants don't accidentally start a recalibration on day 2+.
+        if has_calibration and not self._calibration_skip_applied:
+            self._calibration_skip_applied = True
+            if self.selected_option == 0:
+                self.selected_option = 1  # Move past "Calibrate"
+
         # Clear to transparent so 3D hand area can show through
         self.surface.fill((0, 0, 0, 0))
         pygame.draw.rect(self.surface, BACKGROUND, (0, 0, WINDOW_WIDTH, GAME_AREA_BOTTOM))

@@ -117,11 +117,28 @@ class CalibrationManager:
         }
 
         try:
+            dirpath = os.path.dirname(self.calibration_file)
+            if dirpath:
+                os.makedirs(dirpath, exist_ok=True)
             with open(self.calibration_file, 'w') as f:
                 json.dump(data, f, indent=2)
             print("Calibration data saved.")
         except IOError as e:
             print(f"Failed to save calibration: {e}")
+
+    def load_for_player(self, calibration_file: str):
+        """Switch to a different player's calibration file and reload."""
+        self.calibration_file = calibration_file
+        # Reset to defaults before loading
+        self.is_calibrated = False
+        self.calibration_data = {}
+        self.thresholds = {name: FINGER_PRESS_THRESHOLD for name in FINGER_NAMES}
+        self.angle_thresholds = {name: FINGER_PRESS_ANGLE_THRESHOLD for name in FINGER_NAMES}
+        self.baseline_angles = {name: None for name in FINGER_NAMES}
+        self.angle_calculation_mode = None
+        self.calibrated_palm_positions = {'left': None, 'right': None}
+        self.calibrated_hand_models = {'left': None, 'right': None}
+        self._load_calibration()
 
     def has_calibration(self) -> bool:
         """Check if calibration data exists."""

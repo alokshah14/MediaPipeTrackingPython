@@ -19,6 +19,12 @@ from game.constants import DATA_DIR
 _LAST_PLAYER_FILE = os.path.join(DATA_DIR, "last_player.json")
 
 
+def _player_calibration_path(player_name: str) -> str:
+    """Return the per-player calibration file path."""
+    from game.player_manager import PLAYERS_DIR
+    return os.path.join(PLAYERS_DIR, player_name, "calibration_data.json")
+
+
 def _save_last_player(name: str) -> None:
     """Persist the active player name so the next launch restores it."""
     try:
@@ -147,8 +153,9 @@ class FingerInvaders:
         # Leap Motion setup
         self._init_leap_motion()
 
-        # Initialize tracking
-        self.calibration = CalibrationManager()
+        # Initialize tracking — use per-player calibration file
+        calib_path = _player_calibration_path(self.player_manager.player_name)
+        self.calibration = CalibrationManager(calibration_file=calib_path)
         self.hand_tracker = HandTracker(self.leap_controller, self.calibration)
         stored_angle_mode = self.calibration.get_angle_calculation_mode()
         if stored_angle_mode:
@@ -390,6 +397,15 @@ class FingerInvaders:
         _save_last_player(self.player_manager.player_name)
         self.session_logger.set_player_name(self.player_manager.player_name)
         self.daily_session_manager.reload_for_player()
+        # Reload calibration for the new player
+        calib_path = _player_calibration_path(self.player_manager.player_name)
+        self.calibration.load_for_player(calib_path)
+        stored_angle_mode = self.calibration.get_angle_calculation_mode()
+        if stored_angle_mode:
+            self.hand_tracker.set_angle_calculation_mode(stored_angle_mode)
+        # Reset menu selection so new player gets the right default
+        self.menu_ui._calibration_skip_applied = False
+        self.menu_ui.selected_option = 0
         # Reset any in-progress lab state so the new player starts clean
         self.lab_session_active = False
         self.lab_game_elapsed = {}
@@ -607,6 +623,14 @@ class FingerInvaders:
                     elapsed_pause = current_tick - self.pause_start_tick
                     self.total_paused_ms += elapsed_pause
                     self.session_start_time += elapsed_pause
+                    # Shift the active game's internal clock so pause time is excluded
+                    mode = self.game_engine.current_game_mode
+                    if mode == GameMode.FINGER_INVADERS:
+                        self.game_engine.adjust_clock(elapsed_pause)
+                    elif mode == GameMode.EGG_CATCHER:
+                        self.egg_catcher_game.adjust_clock(elapsed_pause)
+                    elif mode == GameMode.PING_PONG:
+                        self.ping_pong_game.adjust_clock(elapsed_pause)
                     self.game_engine.resume_game()
                     self.resume_countdown = None
             else:

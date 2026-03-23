@@ -136,6 +136,10 @@ class PingPong:
         """Set the accumulated time from previous sessions."""
         self.previous_time = seconds
 
+    def adjust_clock(self, elapsed_ms: int):
+        """Shift session_start_time forward to exclude paused time."""
+        self.session_start_time += elapsed_ms
+
     def get_total_time(self) -> float:
         """Get total time played (previous + current session)."""
         return self.previous_time + self.elapsed_time
