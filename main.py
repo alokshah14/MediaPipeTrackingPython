@@ -1002,7 +1002,10 @@ class FingerInvaders:
             return self.game_engine.get_game_state()
 
     def _end_session(self):
-        duration = (pygame.time.get_ticks() - self.session_start_time - self.total_paused_ms) / 1000.0
+        # session_start_time is shifted forward on every resume by the pause duration,
+        # so subtracting it from now already gives real play time — no need to also
+        # subtract total_paused_ms (that would double-count every pause).
+        duration = (pygame.time.get_ticks() - self.session_start_time) / 1000.0
         duration = max(0.0, duration)
         score = 0
 
