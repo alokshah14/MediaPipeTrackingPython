@@ -581,8 +581,8 @@ class MenuUI:
         self.surface.blit(inst, inst_rect)
 
     def draw_lab_session_menu(self, lab_game_order: List, lab_games_completed: List[str],
-                               lab_session_scores: Dict, next_game, player_name: str = "",
-                               lab_game_elapsed: Dict = None):
+                               lab_session_scores: Dict, selectable_game, quit_selected: bool = False,
+                               player_name: str = "", lab_game_elapsed: Dict = None):
         """Draw the lab session progress screen shown between games."""
         if lab_game_elapsed is None:
             lab_game_elapsed = {}
@@ -609,17 +609,17 @@ class MenuUI:
         for i, gm in enumerate(lab_game_order):
             y = start_y + i * 100
             done = gm.value in lab_games_completed
-            is_next = next_game == gm
+            is_selected = selectable_game == gm
 
             # Row background
-            box_color = (20, 60, 20) if done else ((40, 40, 80) if is_next else (20, 20, 40))
-            border_color = (80, 200, 80) if done else (YELLOW if is_next else (60, 60, 100))
+            box_color = (20, 60, 20) if done else ((40, 40, 80) if is_selected else (20, 20, 40))
+            border_color = (80, 200, 80) if done else (YELLOW if is_selected else (60, 60, 100))
             pygame.draw.rect(self.surface, box_color, (WINDOW_WIDTH // 2 - 280, y, 560, 75), border_radius=10)
             pygame.draw.rect(self.surface, border_color, (WINDOW_WIDTH // 2 - 280, y, 560, 75), 2, border_radius=10)
 
             # Game number + name
             label = f"Game {i + 1}:  {game_names.get(gm.value, gm.value)}"
-            color = (100, 220, 100) if done else (YELLOW if is_next else GRAY)
+            color = (100, 220, 100) if done else (YELLOW if is_selected else GRAY)
             txt = self.fonts['medium'].render(label, True, color)
             self.surface.blit(txt, (WINDOW_WIDTH // 2 - 240, y + 12))
 
@@ -627,20 +627,21 @@ class MenuUI:
             if done:
                 score = lab_session_scores.get(gm.value, 0)
                 badge = self.fonts['small'].render(f"✓  Score: {score}", True, (100, 255, 100))
-            elif is_next:
+            else:
                 elapsed = lab_game_elapsed.get(gm.value, 0.0)
                 if elapsed > 0:
                     remaining_s = max(0, 300 - elapsed)
                     mins, secs = int(remaining_s) // 60, int(remaining_s) % 60
-                    badge = self.fonts['small'].render(f"▶  RESUME  ({mins}:{secs:02d} remaining)", True, YELLOW)
+                    badge_text = f"▶  RESUME  ({mins}:{secs:02d} remaining)" if is_selected else f"Resume available  ({mins}:{secs:02d} remaining)"
+                    badge_color = YELLOW if is_selected else WHITE
                 else:
-                    badge = self.fonts['small'].render("▶  NEXT UP", True, YELLOW)
-            else:
-                badge = self.fonts['small'].render("○  Pending", True, GRAY)
+                    badge_text = "▶  SELECTED" if is_selected else "○  Available"
+                    badge_color = YELLOW if is_selected else GRAY
+                badge = self.fonts['small'].render(badge_text, True, badge_color)
             self.surface.blit(badge, (WINDOW_WIDTH // 2 - 240, y + 46))
 
         # Bottom action
-        all_done = next_game is None
+        all_done = selectable_game is None
         if all_done:
             msg1 = self.fonts['medium'].render("All games complete!", True, (100, 255, 100))
             msg2 = self.fonts['small'].render("Press ENTER to go to menu  →  Select 'Send Home'", True, WHITE)
@@ -649,11 +650,22 @@ class MenuUI:
             self.surface.blit(msg2, (WINDOW_WIDTH // 2 - msg2.get_width() // 2, 600))
             self.surface.blit(msg3, (WINDOW_WIDTH // 2 - msg3.get_width() // 2, 630))
         else:
-            next_name = game_names.get(next_game.value, next_game.value)
-            msg = self.fonts['medium'].render(f"Press ENTER to start  {next_name}", True, WHITE)
-            esc_msg = self.fonts['small'].render("Press ESC to return to main menu", True, GRAY)
+            next_name = game_names.get(selectable_game.value, selectable_game.value)
+            if quit_selected:
+                msg = self.fonts['medium'].render("Press ENTER to return to main menu", True, WHITE)
+            else:
+                msg = self.fonts['medium'].render(f"Use UP/DOWN, ENTER to start  {next_name}", True, WHITE)
             self.surface.blit(msg, (WINDOW_WIDTH // 2 - msg.get_width() // 2, 560))
-            self.surface.blit(esc_msg, (WINDOW_WIDTH // 2 - esc_msg.get_width() // 2, 605))
+
+            quit_box_y = 620
+            quit_box_color = (50, 30, 30) if quit_selected else (20, 20, 40)
+            quit_border = (220, 120, 120) if quit_selected else (80, 80, 120)
+            quit_text_color = (255, 180, 180) if quit_selected else GRAY
+            pygame.draw.rect(self.surface, quit_box_color, (WINDOW_WIDTH // 2 - 160, quit_box_y, 320, 50), border_radius=10)
+            pygame.draw.rect(self.surface, quit_border, (WINDOW_WIDTH // 2 - 160, quit_box_y, 320, 50), 2, border_radius=10)
+            quit_text = self.fonts['small'].render("Quit to Main Menu", True, quit_text_color)
+            quit_rect = quit_text.get_rect(center=(WINDOW_WIDTH // 2, quit_box_y + 25))
+            self.surface.blit(quit_text, quit_rect)
 
     def draw_text_input(self, title: str, current_text: str, subtitle: str = ""):
         """Draw a text input screen."""
@@ -1158,8 +1170,15 @@ class MenuUI:
         self.surface.blit(instruction_text, instruction_rect)
 
     def draw_simulation_mode_indicator(self):
-        """Draws a 'SIMULATION MODE' indicator in the corner."""
-        indicator_text = self.fonts['small'].render("SIMULATION MODE", True, (255, 100, 100))
+        """Draw the active tracking mode in the corner."""
+        mode_text = "SIMULATION MODE"
+        if hasattr(self.game, 'leap_controller') and self.game.leap_controller:
+            tracking_mode = getattr(self.game.leap_controller, 'tracking_mode', None)
+            if tracking_mode == 'leap':
+                mode_text = "LEAP MOTION"
+            elif tracking_mode == 'mediapipe':
+                mode_text = "MEDIAPIPE"
+        indicator_text = self.fonts['small'].render(mode_text, True, (255, 100, 100))
         indicator_rect = indicator_text.get_rect(bottomleft=(10, WINDOW_HEIGHT - 10))
         self.surface.blit(indicator_text, indicator_rect)
 

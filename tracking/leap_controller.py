@@ -1,8 +1,25 @@
-"""Leap Motion controller interface using official Python bindings."""
+"""Leap Motion controller interface using official Python bindings, with MediaPipe fallback."""
 
 import time
 import threading
 from typing import Dict, Tuple
+import os
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    import mediapipe as mp
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+    MEDIAPIPE_AVAILABLE = True
+except ImportError:
+    mp = None
+    python = None
+    vision = None
+    MEDIAPIPE_AVAILABLE = False
 
 def _maybe_add_leap_paths():
     """Add likely Leap SDK Python binding paths to sys.path."""
@@ -144,16 +161,24 @@ else:
 
 
 class LeapController:
-    """Interface for Leap Motion hand tracking using official bindings."""
+    """Interface for hand tracking, preferring Leap Motion with MediaPipe fallback."""
 
-    def __init__(self):
+    def __init__(self, prefer_mediapipe: bool = False):
         """Initialize the Leap Motion controller."""
         self.connection = None
         self.listener = None
         self.connected = False
         self.has_device = False
-        self.simulation_mode = not LEAP_AVAILABLE
+        self.prefer_mediapipe = prefer_mediapipe
+        self.tracking_mode = 'simulation'
+        self.simulation_mode = True
         self._context_manager = None
+        self.connection_failed = False
+
+        self.mp_hands = None
+        self.cap = None
+        self._running = True
+        self._mp_thread = None
 
         # Hand data storage
         self.hands_data = {'left': None, 'right': None}
@@ -163,12 +188,18 @@ class LeapController:
         self.last_frame_id = 0
         self.last_update_time = 0
 
-        if LEAP_AVAILABLE:
+        if prefer_mediapipe and MEDIAPIPE_AVAILABLE:
+            self._init_mediapipe()
+        elif LEAP_AVAILABLE:
             self._init_leap()
+        elif MEDIAPIPE_AVAILABLE:
+            self._init_mediapipe()
 
     def _init_leap(self):
         """Initialize the Leap Motion connection."""
         try:
+            self.tracking_mode = 'leap'
+            self.simulation_mode = False
             self.listener = LeapListener(self)
             self.connection = leap.Connection()
             self.connection.add_listener(self.listener)
@@ -185,7 +216,53 @@ class LeapController:
                 print("No Leap Motion device detected. Connect device and press CHECK.")
         except Exception as e:
             print(f"Failed to connect to Leap Motion: {e}")
+            self.connection_failed = True
+            self._cleanup_leap_resources()
+            if MEDIAPIPE_AVAILABLE:
+                self._init_mediapipe()
+            else:
+                self.tracking_mode = 'simulation'
+                self.simulation_mode = True
+
+    def _init_mediapipe(self):
+        """Initialize MediaPipe hand tracking."""
+        if not MEDIAPIPE_AVAILABLE or cv2 is None:
+            self.tracking_mode = 'simulation'
             self.simulation_mode = True
+            return
+
+        try:
+            model_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'models', 'hand_landmarker.task'))
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"MediaPipe model not found at {model_path}")
+
+            base_options = python.BaseOptions(model_asset_path=model_path)
+            options = vision.HandLandmarkerOptions(
+                base_options=base_options,
+                running_mode=vision.RunningMode.VIDEO,
+                num_hands=2,
+            )
+            self.mp_hands = vision.HandLandmarker.create_from_options(options)
+            self.cap = cv2.VideoCapture(0)
+            if not self.cap.isOpened():
+                raise RuntimeError("Could not open webcam")
+
+            self.tracking_mode = 'mediapipe'
+            self.simulation_mode = False
+            self._mp_thread = threading.Thread(target=self._mediapipe_loop, daemon=True)
+            self._mp_thread.start()
+            print("MediaPipe hand tracking initialized with webcam.")
+        except Exception as e:
+            print(f"Failed to initialize MediaPipe: {e}")
+            self._cleanup_mediapipe_resources()
+            self.tracking_mode = 'simulation'
+            self.simulation_mode = True
+
+    def _mediapipe_loop(self):
+        """Continuously process webcam frames in the background."""
+        while self._running and self.tracking_mode == 'mediapipe':
+            self._process_mediapipe_frame()
+            time.sleep(0.01)
 
     def _on_connected(self):
         """Handle connection established."""
@@ -277,6 +354,87 @@ class LeapController:
 
         self.hands_data = new_hands
 
+    def _process_mediapipe_frame(self):
+        """Process a webcam frame using MediaPipe."""
+        if not self.cap or not self.mp_hands or cv2 is None or mp is None:
+            return
+
+        success, image = self.cap.read()
+        if not success:
+            return
+
+        image = cv2.flip(image, 1)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        timestamp_ms = int(time.time() * 1000)
+        results = self.mp_hands.detect_for_video(mp_image, timestamp_ms)
+
+        new_hands = {'left': None, 'right': None}
+        if results.hand_landmarks and results.handedness:
+            for i, hand_landmarks in enumerate(results.hand_landmarks):
+                handedness_list = results.handedness[i] if i < len(results.handedness) else []
+                if handedness_list:
+                    label = getattr(handedness_list[0], 'display_name', '') or handedness_list[0].category_name
+                    hand_type = 'right' if 'Left' in label else 'left'
+                else:
+                    hand_type = 'right' if i == 0 else 'left'
+                new_hands[hand_type] = self._convert_mediapipe_landmarks_to_hand_data(hand_landmarks)
+
+        with self._lock:
+            self.hands_data = new_hands
+            self.last_update_time = time.time()
+
+    def _convert_mediapipe_landmarks_to_hand_data(self, hand_landmarks):
+        """Convert MediaPipe landmarks to the internal hand data structure."""
+        scale_factor = 200.0
+        landmark_points = [
+            ((lm.x - 0.5) * scale_factor, (0.5 - lm.y) * scale_factor, lm.z * scale_factor * 0.5)
+            for lm in hand_landmarks
+        ]
+        finger_indices = {
+            'thumb': [0, 1, 2, 3, 4],
+            'index': [0, 5, 6, 7, 8],
+            'middle': [0, 9, 10, 11, 12],
+            'ring': [0, 13, 14, 15, 16],
+            'pinky': [0, 17, 18, 19, 20],
+        }
+
+        fingers = {}
+        for finger_name, indices in finger_indices.items():
+            points = [landmark_points[i] for i in indices]
+            metacarpal_dir = self._vector_subtract(points[1], points[0])
+            proximal_dir = self._vector_subtract(points[2], points[1])
+            intermediate_dir = self._vector_subtract(points[3], points[2])
+            bones = {
+                'metacarpal': {'start': points[0], 'end': points[1]},
+                'proximal': {'start': points[1], 'end': points[2]},
+                'intermediate': {'start': points[2], 'end': points[3]},
+                'distal': {'start': points[3], 'end': points[4]},
+            }
+            fingers[finger_name] = {
+                'tip_position': points[-1],
+                'extended': True,
+                'metacarpal_direction': metacarpal_dir,
+                'proximal_direction': proximal_dir,
+                'intermediate_direction': intermediate_dir,
+                'bones': bones,
+                'valid': True,
+            }
+
+        return {
+            'visible': True,
+            'valid': True,
+            'palm_position': landmark_points[0],
+            'palm_normal': (0, 0, 1),
+            'fingers': fingers,
+            'grab_strength': 0.0,
+            'pinch_strength': 0.0,
+            'confidence': 1.0,
+        }
+
+    def _vector_subtract(self, a, b):
+        return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
     def update(self) -> Dict:
         """
         Get the current hand tracking data.
@@ -284,7 +442,7 @@ class LeapController:
         Returns:
             Dictionary containing hand data for left and right hands
         """
-        if self.simulation_mode:
+        if self.tracking_mode == 'simulation':
             return {'left': None, 'right': None}
 
         with self._lock:
@@ -298,20 +456,52 @@ class LeapController:
         return left_visible, right_visible
 
     def is_connected(self) -> bool:
-        """Check if Leap Motion is connected."""
-        return self.connected and not self.simulation_mode
+        """Check if a non-simulated tracking source is connected."""
+        if self.tracking_mode == 'leap':
+            return self.connected
+        if self.tracking_mode == 'mediapipe':
+            return self.cap is not None and self.cap.isOpened()
+        return False
 
     def has_recent_data(self, max_age: float = 0.5) -> bool:
         """Check if we have recent tracking data."""
         return (time.time() - self.last_update_time) < max_age
 
     def cleanup(self):
-        """Clean up the Leap Motion connection."""
-        if self._context_manager:
-            try:
+        """Clean up the active tracking backend."""
+        self._running = False
+        self._cleanup_leap_resources()
+        self._cleanup_mediapipe_resources()
+
+    def _cleanup_leap_resources(self):
+        try:
+            if self.connection and self.listener:
+                self.connection.remove_listener(self.listener)
+                self.listener = None
+        except Exception as e:
+            print(f"Error removing Leap listener: {e}")
+        try:
+            if self._context_manager:
                 self._context_manager.__exit__(None, None, None)
-            except:
-                pass
+                self._context_manager = None
+        except Exception as e:
+            print(f"Error closing Leap connection: {e}")
+        self.connection = None
+        self.connected = False
+
+    def _cleanup_mediapipe_resources(self):
+        try:
+            if self.mp_hands:
+                self.mp_hands.close()
+                self.mp_hands = None
+        except Exception as e:
+            print(f"Error closing MediaPipe: {e}")
+        try:
+            if self.cap:
+                self.cap.release()
+                self.cap = None
+        except Exception as e:
+            print(f"Error releasing webcam: {e}")
 
 
 class SimulatedLeapController(LeapController):
@@ -321,11 +511,19 @@ class SimulatedLeapController(LeapController):
         """Initialize simulated controller."""
         self.connection = None
         self.connected = False
+        self.has_device = False
+        self.prefer_mediapipe = False
+        self.tracking_mode = 'simulation'
         self.simulation_mode = True
         self.hands_data = {'left': None, 'right': None}
         self._lock = threading.Lock()
         self.last_update_time = time.time()
         self._context_manager = None
+        self.connection_failed = False
+        self.mp_hands = None
+        self.cap = None
+        self._running = False
+        self._mp_thread = None
 
         self.simulated_hands_visible = True
         self.simulated_finger_states = {
