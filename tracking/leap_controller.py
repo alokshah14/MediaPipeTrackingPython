@@ -98,10 +98,12 @@ def _load_leap_from_sdk():
     return None
 
 
+listener_base = None
+leap = None
+
 try:
     _maybe_add_leap_paths()
     # Prefer the installed bindings (bundled by PyInstaller), then fall back to SDK file.
-    leap = None
     try:
         import leap as _leap_mod
         leap = _leap_mod
@@ -129,9 +131,9 @@ try:
 
     if not LEAP_AVAILABLE:
         print("Warning: Leap SDK Python bindings not found or incompatible. Running in simulation mode.")
-except ImportError:
+except Exception as e:
     LEAP_AVAILABLE = False
-    print("Warning: Leap Motion SDK not found. Running in simulation mode.")
+    print(f"Warning: Leap Motion SDK not available ({e}). Running without Leap support.")
 
 
 if LEAP_AVAILABLE:

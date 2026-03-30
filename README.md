@@ -19,12 +19,20 @@ Missiles descend from the sky, each assigned to a specific finger. Press the cor
 
 Quick start:
 
-1. **Install Leap Motion SDK** - Download and install from [Ultraleap](https://developer.leapmotion.com/)
-2. **Install Python dependencies**:
+1. **Install Python dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-3. **Run the game**:
+2. **Run the game with MediaPipe webcam tracking**:
+   ```bash
+   python main.py --mediapipe
+   ```
+3. **Optional: enable Leap Motion support**:
+   Install the Ultraleap SDK, then install the optional Leap Python bindings:
+   ```bash
+   pip install -r requirements-leap.txt
+   ```
+4. **Run the game**:
    ```bash
    python main.py
    ```
@@ -33,10 +41,8 @@ Quick start:
 
 Use this when you only have the source files and want to run on Windows.
 
-1. Install Python 3.12 (64-bit) and enable "Add Python to PATH".
-2. Install Ultraleap Gemini SDK and confirm this folder exists:
-   `C:\Program Files\Ultraleap\LeapSDK`
-3. Open PowerShell in the project folder (where `main.py` is), then run:
+1. Install Python 3.10 or 3.11 (64-bit) and enable "Add Python to PATH".
+2. Open PowerShell in the project folder (where `main.py` is), then run:
 
 ```powershell
 python -m venv .venv
@@ -45,7 +51,22 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-4. Run the game:
+3. Run with MediaPipe webcam tracking:
+
+```powershell
+python main.py --mediapipe
+```
+
+4. Optional Leap Motion support:
+
+```powershell
+pip install -r requirements-leap.txt
+```
+
+Install Ultraleap Gemini SDK and confirm this folder exists:
+`C:\Program Files\Ultraleap\LeapSDK`
+
+Then run:
 
 ```powershell
 $env:LEAP_SDK_PATH = "C:\Program Files\Ultraleap\LeapSDK"
@@ -124,7 +145,8 @@ Levels: Easy → Medium → Hard → Expert
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+ recommended
 - pygame >= 2.5.0
 - numpy >= 1.24.0
-- Leap Motion Controller + SDK (optional - falls back to keyboard)
+- Webcam for `--mediapipe`
+- Leap Motion Controller + SDK only if you want Leap mode
