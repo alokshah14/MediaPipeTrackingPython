@@ -102,9 +102,10 @@ class ExtendedGameState:
 class FingerInvaders:
     """Main game application class."""
 
-    def __init__(self, force_simulation: bool = False, start_fullscreen: bool = True):
+    def __init__(self, force_simulation: bool = False, force_mediapipe: bool = False, start_fullscreen: bool = True):
         """Initialize the game application."""
         self.force_simulation = force_simulation
+        self.force_mediapipe = force_mediapipe
         self.game_width = WINDOW_WIDTH
         self.game_height = WINDOW_HEIGHT
 
@@ -125,6 +126,7 @@ class FingerInvaders:
         self.lab_session_active = False
         self._session_natural_end = False  # True only when timer expires (not ESC)
         self.lab_game_elapsed: dict = {}  # game_mode.value -> seconds played so far in lab
+        self.lab_menu_selected_index = 0
 
         pygame.display.gl_set_attribute(pygame.GL_DEPTH_SIZE, 24)
         pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
@@ -197,15 +199,19 @@ class FingerInvaders:
 
     def _init_leap_motion(self):
         if self.force_simulation:
-            temp_leap = LeapController()
-            if not temp_leap.simulation_mode and temp_leap.has_device:
+            self.leap_controller = SimulatedLeapController()
+            self.is_test_mode = True
+        elif self.force_mediapipe:
+            temp_leap = LeapController(prefer_mediapipe=True)
+            if temp_leap.tracking_mode == 'mediapipe':
                 self.leap_controller = temp_leap
+                self.is_test_mode = False
             else:
                 self.leap_controller = SimulatedLeapController()
-            self.is_test_mode = True
+                self.is_test_mode = True
         else:
             temp_leap = LeapController()
-            if temp_leap.simulation_mode:
+            if temp_leap.tracking_mode == 'simulation':
                 self.leap_controller = SimulatedLeapController()
                 self.is_test_mode = True
             else:
@@ -304,31 +310,42 @@ class FingerInvaders:
         elif event.key == pygame.K_UP:
             if state == GameState.MENU:
                 self._move_menu_selection(-1)
+            elif state == ExtendedGameState.LAB_SESSION_MENU:
+                self._move_lab_menu_selection(-1)
         elif event.key == pygame.K_DOWN:
             if state == GameState.MENU:
                 self._move_menu_selection(1)
+            elif state == ExtendedGameState.LAB_SESSION_MENU:
+                self._move_lab_menu_selection(1)
         elif event.key == pygame.K_RETURN:
             if state == GameState.MENU:
                 self._handle_menu_selection()
             elif state == ExtendedGameState.LAB_SESSION_MENU:
-                # ENTER works the same as SPACE on the lab session screen
-                next_game = self._get_next_lab_game()
-                if next_game:
-                    self._start_game(next_game)
-                elif self.player_manager.is_lab_session_complete():
+                if self._is_lab_quit_selected():
                     self.lab_session_active = False
                     self.game_engine.state = GameState.MENU
+                else:
+                    selected_game = self._get_selected_lab_game()
+                    if selected_game:
+                        self._start_game(selected_game)
+                    elif self.player_manager.is_lab_session_complete():
+                        self.lab_session_active = False
+                        self.game_engine.state = GameState.MENU
         elif event.key == pygame.K_SPACE:
             if state == GameState.PAUSED:
                 self.game_engine.state = self.game_engine.previous_state
             elif state == ExtendedGameState.LAB_SESSION_MENU:
-                next_game = self._get_next_lab_game()
-                if next_game:
-                    self._start_game(next_game)
-                elif self.player_manager.is_lab_session_complete():
-                    # All done — go to menu where Send Home is now visible
+                if self._is_lab_quit_selected():
                     self.lab_session_active = False
                     self.game_engine.state = GameState.MENU
+                else:
+                    selected_game = self._get_selected_lab_game()
+                    if selected_game:
+                        self._start_game(selected_game)
+                    elif self.player_manager.is_lab_session_complete():
+                        # All done — go to menu where Send Home is now visible
+                        self.lab_session_active = False
+                        self.game_engine.state = GameState.MENU
             elif state == GameState.GAME_OVER:
                 self._start_game(self.game_engine.current_game_mode)
             elif state == GameState.CALIBRATION_MENU:
@@ -377,6 +394,7 @@ class FingerInvaders:
             self.game_engine.state = ExtendedGameState.SET_PLAYER_NAME
         elif selected == "Start Lab Session":
             self.lab_session_active = True
+            self._ensure_valid_lab_menu_selection()
             self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
         elif selected == "Send Home":
             self.player_manager.start_home_study()
@@ -410,6 +428,7 @@ class FingerInvaders:
         self.lab_session_active = False
         self.lab_game_elapsed = {}
         self._session_natural_end = False
+        self.lab_menu_selected_index = 0
         print(f"Player switched to: {self.player_manager.player_name}")
 
     def _get_menu_options(self) -> List:
@@ -678,12 +697,13 @@ class FingerInvaders:
                 subtitle += "   |   Known: " + ", ".join(known)
             self.menu_ui.draw_text_input("ENTER PLAYER NAME", self.name_input_text, subtitle)
         elif state == ExtendedGameState.LAB_SESSION_MENU:
-            next_game = self._get_next_lab_game()
+            selectable_game = self._get_selected_lab_game()
             self.menu_ui.draw_lab_session_menu(
                 lab_game_order=LAB_GAME_ORDER,
                 lab_games_completed=self.player_manager.lab_games_completed,
                 lab_session_scores=self.player_manager.lab_session_scores,
-                next_game=next_game,
+                selectable_game=selectable_game,
+                quit_selected=self._is_lab_quit_selected(),
                 player_name=self.player_manager.player_name,
                 lab_game_elapsed=self.lab_game_elapsed,
             )
@@ -951,6 +971,42 @@ class FingerInvaders:
                 return gm
         return None
 
+    def _get_available_lab_games(self) -> List[GameMode]:
+        completed = set(self.player_manager.lab_games_completed)
+        return [gm for gm in LAB_GAME_ORDER if gm.value not in completed]
+
+    def _get_lab_menu_items(self) -> List:
+        return self._get_available_lab_games() + ["Quit"]
+
+    def _ensure_valid_lab_menu_selection(self):
+        items = self._get_lab_menu_items()
+        if not items:
+            self.lab_menu_selected_index = 0
+            return
+        self.lab_menu_selected_index %= len(items)
+
+    def _move_lab_menu_selection(self, direction: int):
+        items = self._get_lab_menu_items()
+        if not items:
+            self.lab_menu_selected_index = 0
+            return
+        self.lab_menu_selected_index = (self.lab_menu_selected_index + direction) % len(items)
+
+    def _get_selected_lab_game(self) -> Optional[GameMode]:
+        items = self._get_lab_menu_items()
+        if not items:
+            return None
+        self._ensure_valid_lab_menu_selection()
+        item = items[self.lab_menu_selected_index]
+        return item if isinstance(item, GameMode) else None
+
+    def _is_lab_quit_selected(self) -> bool:
+        items = self._get_lab_menu_items()
+        if not items:
+            return False
+        self._ensure_valid_lab_menu_selection()
+        return items[self.lab_menu_selected_index] == "Quit"
+
     def _start_game(self, mode):
         self.game_engine.current_game_mode = mode
 
@@ -1045,6 +1101,7 @@ class FingerInvaders:
                     self.lab_game_elapsed[gm_val] = self.lab_game_elapsed.get(gm_val, 0.0) + duration
             except Exception as e:
                 print(f"_end_session: lab record error: {e}")
+            self._ensure_valid_lab_menu_selection()
             self.game_engine.state = ExtendedGameState.LAB_SESSION_MENU
         else:
             self.game_engine.state = GameState.MENU
@@ -1205,6 +1262,8 @@ def main():
     parser = argparse.ArgumentParser(description="Leap Motion Finger Training Games")
     parser.add_argument("--simulation", action="store_true",
                         help="Force keyboard simulation mode (no Leap Motion required)")
+    parser.add_argument("--mediapipe", action="store_true",
+                        help="Force MediaPipe webcam tracking mode")
     parser.add_argument("--windowed", action="store_true",
                         help="Start in windowed mode (default is fullscreen)")
     args = parser.parse_args()
@@ -1227,7 +1286,11 @@ def main():
         print()
 
     # Start fullscreen by default, unless --windowed is specified
-    game = FingerInvaders(force_simulation=args.simulation, start_fullscreen=not args.windowed)
+    game = FingerInvaders(
+        force_simulation=args.simulation,
+        force_mediapipe=args.mediapipe,
+        start_fullscreen=not args.windowed,
+    )
     game.run()
 
 if __name__ == "__main__":

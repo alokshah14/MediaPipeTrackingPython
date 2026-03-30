@@ -249,7 +249,7 @@ class OpenGLHandRenderer:
         # Current palm for this specific model
         palm_pos = hand_model.get('palm_position', [0, 0, 0])
         
-        scale_factor = 0.8
+        scale_factor = 0.95 if self.view_mode == "bottom" else 0.8
         palm_radius = PALM_RADIUS * scale_factor * 0.6
 
         glPushMatrix()
