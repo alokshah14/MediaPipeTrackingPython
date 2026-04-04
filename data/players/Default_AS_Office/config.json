@@ -1,0 +1,11 @@
+{
+  "player_name": "Default_AS_Office",
+  "home_start_date": null,
+  "is_home_study": false,
+  "game_playtime_seconds": {
+    "finger_invaders": 198.32699999999997,
+    "egg_catcher": 7.196
+  },
+  "lab_games_completed": [],
+  "lab_session_scores": {}
+}

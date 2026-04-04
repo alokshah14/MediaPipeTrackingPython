@@ -1,0 +1,20 @@
+{
+  "last_played_date": "2026-03-30",
+  "daily_game_order": [
+    "ping_pong",
+    "egg_catcher",
+    "finger_invaders"
+  ],
+  "current_segment": 1,
+  "segment_playtime_ms": 263882,
+  "segment_scores": {},
+  "lowest_score_game": null,
+  "is_locked_for_day": false,
+  "game_progression_track": [
+    "ping_pong",
+    "egg_catcher",
+    "finger_invaders",
+    "free_play",
+    "free_play"
+  ]
+}

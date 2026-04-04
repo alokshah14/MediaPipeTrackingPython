@@ -181,6 +181,7 @@ class LeapController:
         self.cap = None
         self._running = True
         self._mp_thread = None
+        self._leap_thread = None
 
         # Hand data storage
         self.hands_data = {'left': None, 'right': None}
@@ -208,21 +209,44 @@ class LeapController:
             # Open the connection and keep it open
             self._context_manager = self.connection.open()
             self._context_manager.__enter__()
-            self.connection.set_tracking_mode(leap.TrackingMode.Desktop)
+            
+            # Set desktop mode
+            try:
+                self.connection.set_tracking_mode(leap.TrackingMode.Desktop)
+            except:
+                # Older versions might use a different way to set tracking mode
+                pass
+            
+            # Start a background thread to poll the connection
+            self._running = True
+            self._leap_thread = threading.Thread(target=self._leap_poll_loop, daemon=True)
+            self._leap_thread.start()
+            
             print("Leap Motion connection opened.")
 
             # Wait briefly to see if we get any tracking data
             import time
-            time.sleep(0.3)
-            if not self.has_device and not self.has_recent_data(max_age=1.0):
-                print("No Leap Motion device detected. Connect device and press CHECK.")
+            time.sleep(1.0)
+            if not self.has_device and not self.has_recent_data(max_age=1.5):
+                print("No Leap Motion device detected.")
+                # Fall back to MediaPipe if no device found
+                self._cleanup_leap_resources()
+                if MEDIAPIPE_AVAILABLE:
+                    print("Defaulting to MediaPipe via webcam...")
+                    self._init_mediapipe()
+                else:
+                    print("MediaPipe not available, falling back to simulation.")
+                    self.tracking_mode = 'simulation'
+                    self.simulation_mode = True
         except Exception as e:
             print(f"Failed to connect to Leap Motion: {e}")
             self.connection_failed = True
             self._cleanup_leap_resources()
             if MEDIAPIPE_AVAILABLE:
+                print("Defaulting to MediaPipe via webcam...")
                 self._init_mediapipe()
             else:
+                print("MediaPipe not available, falling back to simulation.")
                 self.tracking_mode = 'simulation'
                 self.simulation_mode = True
 
@@ -251,6 +275,7 @@ class LeapController:
 
             self.tracking_mode = 'mediapipe'
             self.simulation_mode = False
+            self._running = True
             self._mp_thread = threading.Thread(target=self._mediapipe_loop, daemon=True)
             self._mp_thread.start()
             print("MediaPipe hand tracking initialized with webcam.")
@@ -265,6 +290,18 @@ class LeapController:
         while self._running and self.tracking_mode == 'mediapipe':
             self._process_mediapipe_frame()
             time.sleep(0.01)
+
+    def _leap_poll_loop(self):
+        """Continuously poll Leap Motion connection for events."""
+        while self._running and self.tracking_mode == 'leap':
+            if self.connection:
+                try:
+                    self.connection.poll(100) # 100ms timeout
+                except Exception as e:
+                    print(f"Leap poll error: {e}")
+                    time.sleep(0.1)
+            else:
+                time.sleep(0.1)
 
     def _on_connected(self):
         """Handle connection established."""
@@ -288,7 +325,15 @@ class LeapController:
         new_hands = {'left': None, 'right': None}
 
         for hand in event.hands:
-            hand_type = 'left' if str(hand.type) == "HandType.Left" else 'right'
+            # Detect hand type robustly
+            hand_type_str = str(hand.type)
+            if "Left" in hand_type_str:
+                hand_type = 'left'
+            elif "Right" in hand_type_str:
+                hand_type = 'right'
+            else:
+                # Fallback for integer or other formats
+                hand_type = 'left' if int(hand.type) == 0 else 'right'
 
             # Extract finger data
             fingers = {}
@@ -299,21 +344,17 @@ class LeapController:
                 tip = digit.distal.next_joint
 
                 # Extract bone directions for angle calculation
-                # Metacarpal bone direction
                 metacarpal = digit.metacarpal
                 metacarpal_dir = (metacarpal.next_joint.x - metacarpal.prev_joint.x,
                                   metacarpal.next_joint.y - metacarpal.prev_joint.y,
                                   metacarpal.next_joint.z - metacarpal.prev_joint.z)
 
-                # Proximal bone direction
                 proximal = digit.proximal
                 proximal_dir = (proximal.next_joint.x - proximal.prev_joint.x,
                                proximal.next_joint.y - proximal.prev_joint.y,
                                proximal.next_joint.z - proximal.prev_joint.z)
 
-                # Intermediate bone direction (or distal for thumb)
                 if finger_name == 'thumb':
-                    # Thumb uses distal bone
                     intermediate = digit.distal
                 else:
                     intermediate = digit.intermediate
@@ -347,7 +388,7 @@ class LeapController:
                 'visible': True,
                 'valid': True,
                 'palm_position': (palm.position.x, palm.position.y, palm.position.z),
-                'palm_normal': (palm.normal.x, palm.normal.y, palm.normal.z),
+                'palm_normal': (0.0, -1.0, 0.0),
                 'fingers': fingers,
                 'grab_strength': hand.grab_strength,
                 'pinch_strength': hand.pinch_strength,
@@ -376,11 +417,16 @@ class LeapController:
             for i, hand_landmarks in enumerate(results.hand_landmarks):
                 handedness_list = results.handedness[i] if i < len(results.handedness) else []
                 if handedness_list:
-                    label = getattr(handedness_list[0], 'display_name', '') or handedness_list[0].category_name
-                    hand_type = 'right' if 'Left' in label else 'left'
+                    # MediaPipe labels are relative to the image. 
+                    # Mirrored image: "Left" label -> user's actual right hand
+                    # If user sees them as flipped, we swap.
+                    label = handedness_list[0].category_name # "Left" or "Right"
+                    hand_type = 'right' if label == 'Left' else 'left'
                 else:
                     hand_type = 'right' if i == 0 else 'left'
-                new_hands[hand_type] = self._convert_mediapipe_landmarks_to_hand_data(hand_landmarks)
+                
+                if hand_type in new_hands:
+                    new_hands[hand_type] = self._convert_mediapipe_landmarks_to_hand_data(hand_landmarks)
 
         with self._lock:
             self.hands_data = new_hands
@@ -388,11 +434,17 @@ class LeapController:
 
     def _convert_mediapipe_landmarks_to_hand_data(self, hand_landmarks):
         """Convert MediaPipe landmarks to the internal hand data structure."""
-        scale_factor = 200.0
+        scale_factor = 400.0
+        # Center around landmark 9 (middle finger MCP) for more stable "palm center"
+        cx, cy, cz = hand_landmarks[9].x, hand_landmarks[9].y, hand_landmarks[9].z
+        
         landmark_points = [
-            ((lm.x - 0.5) * scale_factor, (0.5 - lm.y) * scale_factor, lm.z * scale_factor * 0.5)
+            ((lm.x - cx) * scale_factor, 
+             (cy - lm.y) * scale_factor + 150.0, 
+             (cz - lm.z) * scale_factor)
             for lm in hand_landmarks
         ]
+        
         finger_indices = {
             'thumb': [0, 1, 2, 3, 4],
             'index': [0, 5, 6, 7, 8],
@@ -438,12 +490,7 @@ class LeapController:
         return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
     def update(self) -> Dict:
-        """
-        Get the current hand tracking data.
-
-        Returns:
-            Dictionary containing hand data for left and right hands
-        """
+        """Get the current hand tracking data."""
         if self.tracking_mode == 'simulation':
             return {'left': None, 'right': None}
 
@@ -476,6 +523,13 @@ class LeapController:
         self._cleanup_mediapipe_resources()
 
     def _cleanup_leap_resources(self):
+        self._running = False
+        try:
+            if hasattr(self, '_leap_thread') and self._leap_thread:
+                self._leap_thread.join(timeout=0.2)
+        except:
+            pass
+            
         try:
             if self.connection and self.listener:
                 self.connection.remove_listener(self.listener)
@@ -526,6 +580,7 @@ class SimulatedLeapController(LeapController):
         self.cap = None
         self._running = False
         self._mp_thread = None
+        self._leap_thread = None
 
         self.simulated_hands_visible = True
         self.simulated_finger_states = {
@@ -579,8 +634,6 @@ class SimulatedLeapController(LeapController):
                 finger_x = palm_x + finger_x_offsets[finger_name]
                 base_y = self.base_palm_y
 
-                # Simulate bone directions - when pressed, angle between bones is ~45 degrees
-                # When relaxed, bones are roughly aligned (angle ~0)
                 metacarpal_dir = (0.0, 1.0, 0.0)
                 if is_pressed:
                     proximal_dir = (0.0, 1.0, 0.0)

@@ -232,8 +232,16 @@ class FingerInvaders:
                 self._render()
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-                # Draw 3D hands first (bottom layer with highlighted fingers)
-                self.hand_renderer.draw()
+
+                # Only draw 3D hands in states that need them (not menu screens)
+                states_with_hands = [
+                    GameState.CALIBRATING, GameState.ANGLE_TEST, GameState.PAUSED,
+                    GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG
+                ]
+                if self.game_engine.state in states_with_hands:
+                    # Draw 3D hands first (bottom layer with highlighted fingers)
+                    self.hand_renderer.draw()
+
                 # Then draw 2D game UI and angle bars on top
                 self._draw_2d_overlay_with_opengl("game")
                 if self.game_engine.state != GameState.ANGLE_TEST:
@@ -488,6 +496,9 @@ class FingerInvaders:
                 self._update_ping_pong(dt)
         elif state == GameState.PAUSED:
             self._check_and_handle_auto_pause()
+        elif state == ExtendedGameState.LAB_SESSION_MENU:
+            # No auto-pause or special update logic needed for menu
+            pass
 
     def _update_calibration(self, dt):
         hand_data = self.hand_tracker.latest_hand_data
@@ -599,16 +610,25 @@ class FingerInvaders:
         if self.is_test_mode:
             return
 
+        current_state = self.game_engine.state
+        
+        # Only allow auto-pause from active game states or if already paused
+        active_game_states = [
+            GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG
+        ]
+        
+        if current_state not in active_game_states and current_state != GameState.PAUSED:
+            return
+
         # Skip if no calibration (can't check positions)
         if not self.calibration.has_calibration():
             return
 
         # Give 2-second grace period after game starts before auto-pausing
-        if pygame.time.get_ticks() - self.game_start_tick < 2000:
+        if current_state != GameState.PAUSED and pygame.time.get_ticks() - self.game_start_tick < 2000:
             return
 
         hands_visible = self.hand_tracker.are_hands_visible()
-        current_state = self.game_engine.state
 
         # If hands not visible and not already paused, pause the game
         if not hands_visible and current_state != GameState.PAUSED:

@@ -18,7 +18,8 @@
       "Bash(python -c \"from main import FingerInvaders; print\\(''''Import OK''''\\)\")",
       "mcp__plugin_claude-mem_mcp-search__search",
       "Bash(uv --version:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git fetch:*)"
     ]
   }
 }

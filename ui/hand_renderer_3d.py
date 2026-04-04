@@ -250,7 +250,9 @@ class OpenGLHandRenderer:
         palm_pos = hand_model.get('palm_position', [0, 0, 0])
         
         scale_factor = 0.95 if self.view_mode == "bottom" else 0.8
-        palm_radius = PALM_RADIUS * scale_factor * 0.6
+        # Different palm sizes for gameplay vs calibration
+        palm_multiplier = 0.4 if self.view_mode == "bottom" else 0.6  # Bigger in gameplay, tiny in calibration
+        palm_radius = PALM_RADIUS * scale_factor * palm_multiplier
 
         glPushMatrix()
         # Rotate entire scene to look from above
@@ -258,7 +260,7 @@ class OpenGLHandRenderer:
 
         # Draw target "outline" box only once per hand (when drawing ghost)
         if is_ghost and self.view_mode == "center":
-            self._draw_target_box(palm_radius * 1.5)
+            self._draw_target_box(palm_radius * 2.5)
 
         # Calculate palm offset relative to reference origin
         rel_palm = [
@@ -338,8 +340,9 @@ class OpenGLHandRenderer:
                 if cross_mag > 0.001:
                     glRotatef(math.degrees(rot_angle), cross_prod[0], cross_prod[1], cross_prod[2])
 
-                # Styling
-                bone_radius = FINGER_JOINT_RADIUS * scale_factor * 0.7
+                # Styling - different sizes for gameplay vs calibration
+                bone_multiplier = 0.6 if self.view_mode == "bottom" else 0.35  # Thicker in gameplay
+                bone_radius = FINGER_JOINT_RADIUS * scale_factor * bone_multiplier
                 if is_ghost:
                     glEnable(GL_BLEND)
                     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -354,12 +357,16 @@ class OpenGLHandRenderer:
 
                 # Draw components
                 gluCylinder(self.quadric, bone_radius, bone_radius, bone_length, 6, 1)
-                gluSphere(self.quadric, bone_radius * 1.2, 6, 6)
+                gluSphere(self.quadric, bone_radius * 1.1, 6, 6)  # Reduced joint sphere from 1.2x to 1.1x
 
                 if bone_type == 'distal':
                     glPushMatrix()
                     glTranslatef(0, 0, bone_length)
-                    tip_rad = bone_radius * (2.5 if is_highlighted else 1.8)
+                    # Different tip sizes for gameplay vs calibration
+                    if self.view_mode == "bottom":
+                        tip_rad = bone_radius * (2.2 if is_highlighted else 1.7)  # Bigger in gameplay
+                    else:
+                        tip_rad = bone_radius * (1.8 if is_highlighted else 1.4)  # Smaller in calibration
                     if is_ghost: glColor4f(0.5, 0.8, 1.0, 0.4)
                     gluSphere(self.quadric, tip_rad, 8, 8)
                     glPopMatrix()
