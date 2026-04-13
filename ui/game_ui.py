@@ -507,7 +507,7 @@ class MenuUI:
             self.surface.blit(pt_label, pt_rect)
 
         # Title
-        title = self.fonts['title'].render("LEAP TRACKING GAMES", True, WHITE)
+        title = self.fonts['title'].render("MEDIAPIPE TRACKING GAMES", True, WHITE)
         title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 80))
         self.surface.blit(title, title_rect)
 
@@ -699,13 +699,13 @@ class MenuUI:
         """Draw the connect-device screen."""
         self.surface.fill(BACKGROUND)
 
-        title = self.fonts['title'].render("CONNECT LEAP MOTION", True, WHITE)
+        title = self.fonts['title'].render("CONNECT CAMERA", True, WHITE)
         title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 120))
         self.surface.blit(title, title_rect)
 
         body_lines = [
-            "No Leap Motion device detected.",
-            "Plug it in and make sure the Ultraleap service is running.",
+            "No webcam tracking detected.",
+            "Check camera permissions and make sure the webcam is available.",
             "",
             "Press ENTER to CHECK again.",
             "Press ESC to quit.",
@@ -1172,11 +1172,9 @@ class MenuUI:
     def draw_simulation_mode_indicator(self):
         """Draw the active tracking mode in the corner."""
         mode_text = "SIMULATION MODE"
-        if hasattr(self.game, 'leap_controller') and self.game.leap_controller:
-            tracking_mode = getattr(self.game.leap_controller, 'tracking_mode', None)
-            if tracking_mode == 'leap':
-                mode_text = "LEAP MOTION"
-            elif tracking_mode == 'mediapipe':
+        if hasattr(self.game, 'tracking_controller') and self.game.tracking_controller:
+            tracking_mode = getattr(self.game.tracking_controller, 'tracking_mode', None)
+            if tracking_mode == 'mediapipe':
                 mode_text = "MEDIAPIPE"
         indicator_text = self.fonts['small'].render(mode_text, True, (255, 100, 100))
         indicator_rect = indicator_text.get_rect(bottomleft=(10, WINDOW_HEIGHT - 10))

@@ -4,9 +4,9 @@
 
 #define MyAppName "Finger Invaders"
 #define MyAppVersion "1.0"
-#define MyAppPublisher "Ultraleap Research"
+#define MyAppPublisher "Open Source"
 #define MyAppExeName "FingerInvaders.exe"
-#define MyAppURL "https://github.com/alokshah14/LeapTrackingPython"
+#define MyAppURL "https://github.com/alokshah14/MediaPipeTrackingPython"
 
 [Setup]
 ; Basic info
@@ -54,33 +54,3 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-
-[Code]
-function InitializeSetup(): Boolean;
-var
-  ResultCode: Integer;
-  UltraleapInstalled: Boolean;
-  Response: Integer;
-begin
-  // Check if Ultraleap Hand Tracking is installed
-  UltraleapInstalled := DirExists('C:\Program Files\Ultraleap\LeapSDK');
-
-  if not UltraleapInstalled then
-  begin
-    Response := MsgBox('Ultraleap Hand Tracking Service is required but not detected.' + #13#10 + #13#10 +
-                       'Would you like to download it now?' + #13#10 + #13#10 +
-                       'Click Yes to open the download page, or No to continue anyway (simulation mode only).',
-                       mbConfirmation, MB_YESNO);
-
-    if Response = IDYES then
-    begin
-      // Open Ultraleap download page
-      ShellExec('open', 'https://leap2.ultraleap.com/downloads/', '', '', SW_SHOW, ewNoWait, ResultCode);
-      // Don't continue installation
-      Result := False;
-      Exit;
-    end;
-  end;
-
-  Result := True;
-end;

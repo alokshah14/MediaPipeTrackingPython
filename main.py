@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Finger Invaders - A Leap Motion finger individuation game.
+Finger Invaders - A MediaPipe finger individuation game.
 """
 
 import pygame
@@ -51,12 +51,6 @@ if getattr(sys, 'frozen', False):
     internal_dir = os.path.join(bundle_dir, "_internal")
     if os.path.isdir(internal_dir):
         bundle_dir = internal_dir
-    os.environ["LEAPSDK_INSTALL_LOCATION"] = bundle_dir
-    # Ensure LeapC.dll is discoverable when bundled under leapc_cffi
-    if os.name == "nt":
-        leapc_dir = os.path.join(bundle_dir, "leapc_cffi")
-        if os.path.isdir(leapc_dir):
-            os.add_dll_directory(leapc_dir)
     # Ensure current working directory is bundle dir (to find data/ and other assets)
     os.chdir(bundle_dir)
 
@@ -78,7 +72,7 @@ from game.ping_pong import PingPong
 from game.session_manager import DailySessionManager
 from game.player_manager import PlayerManager
 from game.reward_manager import RewardManager
-from tracking.leap_controller import LeapController, SimulatedLeapController
+from tracking.mediapipe_controller import MediaPipeController, SimulatedHandController
 from tracking.hand_tracker import HandTracker
 from tracking.calibration import CalibrationManager
 from tracking.session_logger import SessionLogger
@@ -102,10 +96,9 @@ class ExtendedGameState:
 class FingerInvaders:
     """Main game application class."""
 
-    def __init__(self, force_simulation: bool = False, force_mediapipe: bool = False, start_fullscreen: bool = True):
+    def __init__(self, force_simulation: bool = False, start_fullscreen: bool = True):
         """Initialize the game application."""
         self.force_simulation = force_simulation
-        self.force_mediapipe = force_mediapipe
         self.game_width = WINDOW_WIDTH
         self.game_height = WINDOW_HEIGHT
 
@@ -152,13 +145,13 @@ class FingerInvaders:
         self.trial_summary = TrialSummaryExporter()
         self.sound_manager = SoundManager()
 
-        # Leap Motion setup
-        self._init_leap_motion()
+        # Hand tracking setup
+        self._init_tracking_controller()
 
         # Initialize tracking — use per-player calibration file
         calib_path = _player_calibration_path(self.player_manager.player_name)
         self.calibration = CalibrationManager(calibration_file=calib_path)
-        self.hand_tracker = HandTracker(self.leap_controller, self.calibration)
+        self.hand_tracker = HandTracker(self.tracking_controller, self.calibration)
         stored_angle_mode = self.calibration.get_angle_calculation_mode()
         if stored_angle_mode:
             self.hand_tracker.set_angle_calculation_mode(stored_angle_mode)
@@ -197,29 +190,21 @@ class FingerInvaders:
 
         self._init_2d_opengl()
 
-    def _init_leap_motion(self):
+    def _init_tracking_controller(self):
         if self.force_simulation:
-            self.leap_controller = SimulatedLeapController()
+            self.tracking_controller = SimulatedHandController()
             self.is_test_mode = True
-        elif self.force_mediapipe:
-            temp_leap = LeapController(prefer_mediapipe=True)
-            if temp_leap.tracking_mode == 'mediapipe':
-                self.leap_controller = temp_leap
-                self.is_test_mode = False
-            else:
-                self.leap_controller = SimulatedLeapController()
-                self.is_test_mode = True
         else:
-            temp_leap = LeapController()
-            if temp_leap.tracking_mode == 'simulation':
-                self.leap_controller = SimulatedLeapController()
+            controller = MediaPipeController()
+            if controller.tracking_mode == 'simulation':
+                self.tracking_controller = SimulatedHandController()
                 self.is_test_mode = True
             else:
-                self.leap_controller = temp_leap
+                self.tracking_controller = controller
                 self.is_test_mode = False
-        
+
         self.allow_play_without_calibration = self.is_test_mode
-        self.simulation_keyboard_only = isinstance(self.leap_controller, SimulatedLeapController)
+        self.simulation_keyboard_only = isinstance(self.tracking_controller, SimulatedHandController)
 
     def run(self):
         try:
@@ -1252,13 +1237,13 @@ class FingerInvaders:
         """Clean up resources before exit."""
         print("Cleaning up...")
 
-        # Stop Leap Motion controller and threads
-        if hasattr(self, 'leap_controller') and self.leap_controller:
+        # Stop the active tracking controller and threads.
+        if hasattr(self, 'tracking_controller') and self.tracking_controller:
             try:
-                print("Closing Leap Motion connection...")
-                self.leap_controller.cleanup()
+                print("Closing hand tracking controller...")
+                self.tracking_controller.cleanup()
             except Exception as e:
-                print(f"Error cleaning up Leap controller: {e}")
+                print(f"Error cleaning up tracking controller: {e}")
 
         # Clean up OpenGL hand renderer
         if hasattr(self, 'hand_renderer') and self.hand_renderer:
@@ -1279,17 +1264,15 @@ class FingerInvaders:
         os._exit(0)
 
 def main():
-    parser = argparse.ArgumentParser(description="Leap Motion Finger Training Games")
+    parser = argparse.ArgumentParser(description="MediaPipe Finger Training Games")
     parser.add_argument("--simulation", action="store_true",
-                        help="Force keyboard simulation mode (no Leap Motion required)")
-    parser.add_argument("--mediapipe", action="store_true",
-                        help="Force MediaPipe webcam tracking mode")
+                        help="Force keyboard simulation mode instead of webcam tracking")
     parser.add_argument("--windowed", action="store_true",
                         help="Start in windowed mode (default is fullscreen)")
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  FINGER TRAINING GAMES - Leap Motion Edition")
+    print("  FINGER TRAINING GAMES - MediaPipe Edition")
     print("=" * 60)
     print()
     print("Controls:")
@@ -1308,7 +1291,6 @@ def main():
     # Start fullscreen by default, unless --windowed is specified
     game = FingerInvaders(
         force_simulation=args.simulation,
-        force_mediapipe=args.mediapipe,
         start_fullscreen=not args.windowed,
     )
     game.run()

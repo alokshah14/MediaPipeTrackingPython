@@ -11,7 +11,7 @@ DATA_DIR = "data"
 WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 900
 FPS = 60
-GAME_TITLE = "Finger Invaders - Leap Motion"
+GAME_TITLE = "Finger Invaders - MediaPipe"
 
 # Game area settings
 GAME_AREA_TOP = 100  # Space for HUD

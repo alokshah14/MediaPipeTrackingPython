@@ -1,6 +1,6 @@
-# Finger Invaders - Leap Motion Edition
+# Finger Invaders - MediaPipe Edition
 
-A Space Invaders-style rehabilitation/training game using Leap Motion hand tracking for finger individuation practice.
+A Space Invaders-style rehabilitation/training game using MediaPipe webcam hand tracking for finger individuation practice.
 
 ## Overview
 
@@ -23,18 +23,13 @@ Quick start:
    ```bash
    pip install -r requirements.txt
    ```
-2. **Run the game with MediaPipe webcam tracking**:
-   ```bash
-   python main.py --mediapipe
-   ```
-3. **Optional: enable Leap Motion support**:
-   Install the Ultraleap SDK, then install the optional Leap Python bindings:
-   ```bash
-   pip install -r requirements-leap.txt
-   ```
-4. **Run the game**:
+2. **Run the game**:
    ```bash
    python main.py
+   ```
+3. **Optional: keyboard-only testing**:
+   ```bash
+   python main.py --simulation
    ```
 
 ## Windows Setup (From Python Files)
@@ -54,37 +49,20 @@ pip install -r requirements.txt
 3. Run with MediaPipe webcam tracking:
 
 ```powershell
-python main.py --mediapipe
-```
-
-4. Optional Leap Motion support:
-
-```powershell
-pip install -r requirements-leap.txt
-```
-
-Install Ultraleap Gemini SDK and confirm this folder exists:
-`C:\Program Files\Ultraleap\LeapSDK`
-
-Then run:
-
-```powershell
-$env:LEAP_SDK_PATH = "C:\Program Files\Ultraleap\LeapSDK"
 python main.py
 ```
 
-5. Optional desktop launcher: create `Run-FingerInvaders.bat` on Desktop:
+4. Optional desktop launcher: create `Run-FingerInvaders.bat` on Desktop:
 
 ```bat
 @echo off
-set LEAP_SDK_PATH=C:\Program Files\Ultraleap\LeapSDK
-cd /d "C:\Path\To\LeapTrackingPython"
+cd /d "C:\Path\To\MediaPipeTrackingPython"
 call .venv\Scripts\activate.bat
 python main.py
 pause
 ```
 
-Replace `C:\Path\To\LeapTrackingPython` with your actual project folder.
+Replace `C:\Path\To\MediaPipeTrackingPython` with your actual project folder.
 
 If PowerShell blocks activation, run once as Administrator:
 
@@ -105,7 +83,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 - **Space**: Resume (when paused)
 
 ### Simulation Mode (keyboard)
-When Leap Motion is not available, use keyboard:
+For keyboard-only testing, use:
 - **Left Hand**: Q (pinky), W (ring), E (middle), R (index), T (thumb)
 - **Right Hand**: Y (thumb), U (index), I (middle), O (ring), P (pinky)
 
@@ -148,5 +126,5 @@ Levels: Easy → Medium → Hard → Expert
 - Python 3.10+ recommended
 - pygame >= 2.5.0
 - numpy >= 1.24.0
-- Webcam for `--mediapipe`
-- Leap Motion Controller + SDK only if you want Leap mode
+- Webcam for normal tracking
+- Keyboard only for `--simulation`

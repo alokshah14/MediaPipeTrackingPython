@@ -7,8 +7,7 @@ numpy==1.26.4
 PyOpenGL==3.1.7
 PyOpenGL-accelerate==3.1.7
 
-# Leap Motion bindings (install separately, see below)
-# pip install git+https://github.com/ultraleap/leapc-python-bindings.git#subdirectory=leapc-python-api
+# MediaPipe webcam tracking ships through requirements.txt.
 
 # For building executables
 pyinstaller==6.3.0

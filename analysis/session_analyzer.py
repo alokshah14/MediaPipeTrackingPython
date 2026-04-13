@@ -1,5 +1,5 @@
 """
-Session Log Analyzer for Leap Motion Finger Individuation Game
+Session Log Analyzer for MediaPipe Finger Individuation Game
 
 This module provides tools to load, analyze, and visualize session data
 from the finger individuation game. Use in Jupyter notebooks or standalone.

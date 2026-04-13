@@ -84,20 +84,16 @@ exit /b 1
 REM Install other requirements
 echo.
 echo [4/5] Installing other dependencies...
-pip install numpy==1.26.4
-pip install PyOpenGL==3.1.7
-pip install PyOpenGL-accelerate==3.1.7
-pip install matplotlib==3.8.3
-pip install pandas==2.2.1
+pip install -r requirements-windows.txt
 
-REM Install Leap Motion bindings
+REM Install core runtime requirements
 echo.
-echo [5/5] Installing Leap Motion Python bindings...
-pip install git+https://github.com/ultraleap/leapc-python-bindings.git#subdirectory=leapc-python-api
+echo [5/5] Installing MediaPipe runtime...
+pip install -r requirements.txt
 if errorlevel 1 (
     echo.
-    echo Warning: Leap Motion bindings installation failed
-    echo You can still run in simulation mode
+    echo Warning: Some runtime packages failed to install
+    echo You can still run in simulation mode if webcam tracking is unavailable
     echo.
 )
 
@@ -109,7 +105,7 @@ echo.
 echo To run the game:
 echo   python main.py
 echo.
-echo To run in simulation mode (no Leap device):
+echo To run in simulation mode (no webcam needed):
 echo   python main.py --simulation
 echo.
 echo To build executable:

@@ -40,17 +40,17 @@ class FrameSnapshot:
 
 
 class HandTracker:
-    """Tracks hands and detects finger presses using Leap Motion data."""
+    """Tracks hands and detects finger presses using hand tracking data."""
 
-    def __init__(self, leap_controller, calibration_manager):
+    def __init__(self, tracking_controller, calibration_manager):
         """
         Initialize the hand tracker.
 
         Args:
-            leap_controller: LeapController instance
+            tracking_controller: MediaPipe or simulation controller instance
             calibration_manager: CalibrationManager instance
         """
-        self.leap = leap_controller
+        self.tracking = tracking_controller
         self.calibration = calibration_manager
 
         # Current state
@@ -104,9 +104,9 @@ class HandTracker:
 
         self._last_update_time = current_time
 
-        # Get latest hand data from Leap
-        hands_data = self.leap.update()
-        if hasattr(self.leap, "has_recent_data") and not self.leap.has_recent_data():
+        # Get latest hand data from the active tracking backend.
+        hands_data = self.tracking.update()
+        if hasattr(self.tracking, "has_recent_data") and not self.tracking.has_recent_data():
             hands_data = {'left': None, 'right': None}
         self.latest_hand_data = hands_data # Store the latest hand data
 
@@ -322,7 +322,7 @@ class HandTracker:
             'right': None
         }
 
-        hands_data = self.leap.hands_data
+        hands_data = self.tracking.hands_data
 
         for hand_type in ['left', 'right']:
             hand = hands_data.get(hand_type)

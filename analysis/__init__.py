@@ -1,4 +1,4 @@
-"""Analysis tools for Leap Motion Finger Individuation Game."""
+"""Analysis tools for MediaPipe Finger Individuation Game."""
 
 from .session_analyzer import (
     SessionAnalyzer,

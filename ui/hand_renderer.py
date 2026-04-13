@@ -1,4 +1,4 @@
-"""Hand visualization renderer for displaying Leap Motion hand tracking."""
+"""Hand visualization renderer for displaying tracked hands."""
 
 import pygame
 import math
