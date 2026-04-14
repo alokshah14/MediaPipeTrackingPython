@@ -48,14 +48,58 @@ class MediaPipeController:
         self._init_mediapipe()
 
     @staticmethod
-    def _create_capture(camera_index: int):
-        """Create a webcam capture with a backend that works well on Windows."""
+    def _candidate_backends() -> List[int | None]:
+        """Return camera backends to try in order."""
+        if cv2 is None:
+            return [None]
+
+        if os.name == "nt":
+            backends: List[int | None] = []
+            if hasattr(cv2, "CAP_DSHOW"):
+                backends.append(cv2.CAP_DSHOW)
+            if hasattr(cv2, "CAP_MSMF"):
+                backends.append(cv2.CAP_MSMF)
+            backends.append(None)
+            return backends
+        return [None]
+
+    @classmethod
+    def _create_capture(cls, camera_index: int):
+        """Create a webcam capture, trying a few backends on Windows."""
         if cv2 is None:
             return None
 
-        if os.name == "nt" and hasattr(cv2, "CAP_DSHOW"):
-            return cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-        return cv2.VideoCapture(camera_index)
+        for backend in cls._candidate_backends():
+            cap = None
+            try:
+                if backend is None:
+                    cap = cv2.VideoCapture(camera_index)
+                else:
+                    cap = cv2.VideoCapture(camera_index, backend)
+                if cap and cap.isOpened():
+                    return cap
+                if cap:
+                    cap.release()
+            except Exception:
+                try:
+                    if cap:
+                        cap.release()
+                except Exception:
+                    pass
+        return None
+
+    @staticmethod
+    def _wait_for_frame(cap, attempts: int = 8, delay_s: float = 0.12) -> bool:
+        """Give a camera a brief warm-up window before treating it as dead."""
+        if cap is None:
+            return False
+
+        for _ in range(attempts):
+            ok, _ = cap.read()
+            if ok:
+                return True
+            time.sleep(delay_s)
+        return False
 
     @classmethod
     def list_available_cameras(cls, max_devices: int = 6) -> List[Dict[str, int | str]]:
@@ -76,8 +120,7 @@ class MediaPipeController:
             try:
                 cap = cls._create_capture(camera_index)
                 if cap and cap.isOpened():
-                    ok, _ = cap.read()
-                    if ok:
+                    if cls._wait_for_frame(cap):
                         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
                         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
                         if camera_index < len(device_names) and device_names[camera_index]:
@@ -124,8 +167,10 @@ class MediaPipeController:
             )
             self.mp_hands = vision.HandLandmarker.create_from_options(options)
             self.cap = self._create_capture(self.camera_index)
-            if not self.cap.isOpened():
+            if not self.cap or not self.cap.isOpened():
                 raise RuntimeError(f"Could not open camera {self.camera_index}")
+            if not self._wait_for_frame(self.cap, attempts=10, delay_s=0.1):
+                raise RuntimeError(f"Camera {self.camera_index} opened but did not produce frames")
 
             self.tracking_mode = "mediapipe"
             self.simulation_mode = False
