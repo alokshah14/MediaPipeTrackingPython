@@ -3,7 +3,7 @@
 import os
 import threading
 import time
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 try:
     import cv2
@@ -22,11 +22,17 @@ except ImportError:
     vision = None
     MEDIAPIPE_AVAILABLE = False
 
+try:
+    from pygrabber.dshow_graph import FilterGraph
+except ImportError:
+    FilterGraph = None
+
 
 class MediaPipeController:
     """Interface for webcam-based MediaPipe hand tracking."""
 
-    def __init__(self):
+    def __init__(self, camera_index: int = 0):
+        self.camera_index = camera_index
         self.tracking_mode = "simulation"
         self.simulation_mode = True
         self.connected = False
@@ -40,6 +46,59 @@ class MediaPipeController:
         self.last_update_time = 0.0
         self.last_frame_id = 0
         self._init_mediapipe()
+
+    @staticmethod
+    def _create_capture(camera_index: int):
+        """Create a webcam capture with a backend that works well on Windows."""
+        if cv2 is None:
+            return None
+
+        if os.name == "nt" and hasattr(cv2, "CAP_DSHOW"):
+            return cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+        return cv2.VideoCapture(camera_index)
+
+    @classmethod
+    def list_available_cameras(cls, max_devices: int = 6) -> List[Dict[str, int | str]]:
+        """Return a lightweight list of usable camera indices."""
+        if cv2 is None:
+            return []
+
+        device_names: List[str] = []
+        if os.name == "nt" and FilterGraph is not None:
+            try:
+                device_names = list(FilterGraph().get_input_devices())
+            except Exception:
+                device_names = []
+
+        cameras = []
+        for camera_index in range(max_devices):
+            cap = None
+            try:
+                cap = cls._create_capture(camera_index)
+                if cap and cap.isOpened():
+                    ok, _ = cap.read()
+                    if ok:
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                        if camera_index < len(device_names) and device_names[camera_index]:
+                            label = device_names[camera_index]
+                        else:
+                            label = f"Camera {camera_index}"
+                        if width > 0 and height > 0:
+                            label = f"{label} ({width}x{height})"
+                        cameras.append({
+                            "index": camera_index,
+                            "label": label,
+                        })
+            except Exception:
+                pass
+            finally:
+                try:
+                    if cap:
+                        cap.release()
+                except Exception:
+                    pass
+        return cameras
 
     def _init_mediapipe(self):
         """Initialize MediaPipe hand tracking."""
@@ -64,9 +123,9 @@ class MediaPipeController:
                 num_hands=2,
             )
             self.mp_hands = vision.HandLandmarker.create_from_options(options)
-            self.cap = cv2.VideoCapture(0)
+            self.cap = self._create_capture(self.camera_index)
             if not self.cap.isOpened():
-                raise RuntimeError("Could not open webcam")
+                raise RuntimeError(f"Could not open camera {self.camera_index}")
 
             self.tracking_mode = "mediapipe"
             self.simulation_mode = False
@@ -74,7 +133,7 @@ class MediaPipeController:
             self._running = True
             self._mp_thread = threading.Thread(target=self._mediapipe_loop, daemon=True)
             self._mp_thread.start()
-            print("MediaPipe hand tracking initialized with webcam.")
+            print(f"MediaPipe hand tracking initialized with camera {self.camera_index}.")
         except Exception as e:
             print(f"Failed to initialize MediaPipe: {e}")
             self.connection_failed = True

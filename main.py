@@ -92,6 +92,7 @@ LAB_GAME_ORDER = [GameMode.FINGER_INVADERS, GameMode.EGG_CATCHER, GameMode.PING_
 class ExtendedGameState:
     SET_PLAYER_NAME = 'set_player_name'
     LAB_SESSION_MENU = 'lab_session_menu'
+    SELECT_CAMERA = 'select_camera'
 
 class FingerInvaders:
     """Main game application class."""
@@ -120,6 +121,10 @@ class FingerInvaders:
         self._session_natural_end = False  # True only when timer expires (not ESC)
         self.lab_game_elapsed: dict = {}  # game_mode.value -> seconds played so far in lab
         self.lab_menu_selected_index = 0
+        self.camera_menu_selected_index = 0
+        self.camera_options = []
+        self.camera_selection_message = ""
+        self.pending_startup_state = None
 
         pygame.display.gl_set_attribute(pygame.GL_DEPTH_SIZE, 24)
         pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
@@ -167,6 +172,8 @@ class FingerInvaders:
         self.hand_renderer = OpenGLHandRenderer(self.screen)
         self.calibration_renderer = CalibrationHandRenderer(self.pygame_2d_surface)
         self.old_hand_renderer = OldHandRenderer(self.pygame_2d_surface)
+        if self.pending_startup_state is not None:
+            self.game_engine.state = self.pending_startup_state
 
         # State variables
         self.session_timer = 0
@@ -192,19 +199,87 @@ class FingerInvaders:
 
     def _init_tracking_controller(self):
         if self.force_simulation:
-            self.tracking_controller = SimulatedHandController()
-            self.is_test_mode = True
+            self._apply_tracking_controller(SimulatedHandController())
+            self.pending_startup_state = None
         else:
-            controller = MediaPipeController()
-            if controller.tracking_mode == 'simulation':
-                self.tracking_controller = SimulatedHandController()
-                self.is_test_mode = True
+            self.camera_options = MediaPipeController.list_available_cameras()
+            if len(self.camera_options) > 1:
+                self.camera_menu_selected_index = 0
+                self.camera_selection_message = "Multiple cameras detected."
+                self.pending_startup_state = ExtendedGameState.SELECT_CAMERA
+                self._apply_tracking_controller(SimulatedHandController(), is_test_mode=False)
+            elif len(self.camera_options) == 1:
+                self._apply_tracking_controller(SimulatedHandController(), is_test_mode=False)
+                if not self._set_camera_by_index(self.camera_options[0]["index"]):
+                    self.pending_startup_state = GameState.CONNECT_DEVICE
             else:
-                self.tracking_controller = controller
-                self.is_test_mode = False
+                self.camera_selection_message = "No cameras detected."
+                self.pending_startup_state = GameState.CONNECT_DEVICE
+                self._apply_tracking_controller(SimulatedHandController(), is_test_mode=False)
 
+    def _apply_tracking_controller(self, controller, is_test_mode: Optional[bool] = None):
+        """Attach a controller to the app and existing tracker."""
+        previous_controller = getattr(self, "tracking_controller", None)
+        if previous_controller is not None and previous_controller is not controller:
+            try:
+                previous_controller.cleanup()
+            except Exception as e:
+                print(f"Error cleaning up previous tracking controller: {e}")
+        self.tracking_controller = controller
+        if is_test_mode is None:
+            is_test_mode = isinstance(controller, SimulatedHandController)
+        self.is_test_mode = is_test_mode
         self.allow_play_without_calibration = self.is_test_mode
         self.simulation_keyboard_only = isinstance(self.tracking_controller, SimulatedHandController)
+        if hasattr(self, "hand_tracker") and self.hand_tracker:
+            self.hand_tracker.tracking = self.tracking_controller
+
+    def _camera_selection_options(self) -> List[str]:
+        """Return display labels for the camera startup menu."""
+        return [str(option["label"]) for option in self.camera_options] + ["Keyboard Simulation"]
+
+    def _set_camera_by_index(self, camera_index: int) -> bool:
+        """Create and attach a MediaPipe controller for the chosen camera."""
+        controller = MediaPipeController(camera_index=camera_index)
+        if controller.tracking_mode == "mediapipe":
+            self._apply_tracking_controller(controller, is_test_mode=False)
+            self.camera_selection_message = f"Using Camera {camera_index}"
+            self.pending_startup_state = None
+            if hasattr(self, "game_engine") and self.game_engine:
+                self.game_engine.state = GameState.MENU
+            return True
+
+        controller.cleanup()
+        self.camera_selection_message = f"Could not start Camera {camera_index}."
+        return False
+
+    def _refresh_camera_options(self):
+        """Rescan webcams and update the startup selection state."""
+        self.camera_options = MediaPipeController.list_available_cameras()
+        self.camera_menu_selected_index = 0
+        if len(self.camera_options) > 1:
+            self.camera_selection_message = "Multiple cameras detected."
+            self.game_engine.state = ExtendedGameState.SELECT_CAMERA
+        elif len(self.camera_options) == 1:
+            if not self._set_camera_by_index(self.camera_options[0]["index"]):
+                self.game_engine.state = GameState.CONNECT_DEVICE
+            else:
+                self.game_engine.state = GameState.MENU
+        else:
+            self.camera_selection_message = "No cameras detected."
+            self.game_engine.state = GameState.CONNECT_DEVICE
+
+    def _confirm_camera_selection(self):
+        """Apply the currently selected startup camera option."""
+        if self.camera_menu_selected_index >= len(self.camera_options):
+            self._apply_tracking_controller(SimulatedHandController(), is_test_mode=True)
+            self.camera_selection_message = "Keyboard simulation enabled."
+            self.game_engine.state = GameState.MENU
+            return
+
+        camera_index = int(self.camera_options[self.camera_menu_selected_index]["index"])
+        if not self._set_camera_by_index(camera_index):
+            self._refresh_camera_options()
 
     def run(self):
         try:
@@ -281,6 +356,20 @@ class FingerInvaders:
                     self.name_input_text += event.unicode
             return
 
+        if state == ExtendedGameState.SELECT_CAMERA:
+            options = self._camera_selection_options()
+            if event.key == pygame.K_UP:
+                self.camera_menu_selected_index = (self.camera_menu_selected_index - 1) % len(options)
+            elif event.key == pygame.K_DOWN:
+                self.camera_menu_selected_index = (self.camera_menu_selected_index + 1) % len(options)
+            elif event.key == pygame.K_r:
+                self._refresh_camera_options()
+            elif event.key == pygame.K_RETURN:
+                self._confirm_camera_selection()
+            elif event.key == pygame.K_ESCAPE:
+                self.running = False
+            return
+
         if event.key == pygame.K_ESCAPE:
             if state in [GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG, GameState.PAUSED]:
                 self._session_natural_end = False
@@ -297,6 +386,8 @@ class FingerInvaders:
             elif state == ExtendedGameState.LAB_SESSION_MENU:
                 self.lab_session_active = False
                 self.game_engine.state = GameState.MENU
+            elif state == GameState.CONNECT_DEVICE:
+                self.running = False
             elif state == GameState.MENU:
                 self.running = False
         
@@ -311,7 +402,9 @@ class FingerInvaders:
             elif state == ExtendedGameState.LAB_SESSION_MENU:
                 self._move_lab_menu_selection(1)
         elif event.key == pygame.K_RETURN:
-            if state == GameState.MENU:
+            if state == GameState.CONNECT_DEVICE:
+                self._refresh_camera_options()
+            elif state == GameState.MENU:
                 self._handle_menu_selection()
             elif state == ExtendedGameState.LAB_SESSION_MENU:
                 if self._is_lab_quit_selected():
@@ -324,6 +417,10 @@ class FingerInvaders:
                     elif self.player_manager.is_lab_session_complete():
                         self.lab_session_active = False
                         self.game_engine.state = GameState.MENU
+        elif event.key == pygame.K_s and state == GameState.CONNECT_DEVICE:
+            self._apply_tracking_controller(SimulatedHandController(), is_test_mode=True)
+            self.camera_selection_message = "Keyboard simulation enabled."
+            self.game_engine.state = GameState.MENU
         elif event.key == pygame.K_SPACE:
             if state == GameState.PAUSED:
                 self.game_engine.state = self.game_engine.previous_state
@@ -695,6 +792,14 @@ class FingerInvaders:
                 study_status=study_status,
                 admin_playtime=playtime_display,
             )
+        elif state == ExtendedGameState.SELECT_CAMERA:
+            self.menu_ui.draw_camera_selection(
+                camera_options=self._camera_selection_options(),
+                selected_index=self.camera_menu_selected_index,
+                message=self.camera_selection_message,
+            )
+        elif state == GameState.CONNECT_DEVICE:
+            self.menu_ui.draw_connect_device(self.camera_selection_message)
         elif state == ExtendedGameState.SET_PLAYER_NAME:
             known = self.player_manager.list_players()
             subtitle = "Current: " + self.player_manager.player_name

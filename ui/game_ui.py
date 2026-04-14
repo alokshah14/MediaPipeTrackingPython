@@ -707,16 +707,17 @@ class MenuUI:
             "No webcam tracking detected.",
             "Check camera permissions and make sure the webcam is available.",
             "",
-            "Press ENTER to CHECK again.",
+            "Press ENTER to rescan cameras.",
+            "Press S for keyboard simulation.",
             "Press ESC to quit.",
             "",
-            "If you want keyboard simulation, launch with:",
+            "If you want keyboard simulation next time, launch with:",
             "python main.py --simulation",
         ]
 
         y = 220
         for line in body_lines:
-            color = YELLOW if "CHECK" in line or "--simulation" in line else GRAY
+            color = YELLOW if "ENTER" in line or "Press S" in line or "--simulation" in line else GRAY
             text = self.fonts['medium'].render(line, True, color)
             self.surface.blit(text, (80, y))
             y += 36
@@ -724,6 +725,36 @@ class MenuUI:
         if message:
             status = self.fonts['medium'].render(message, True, (255, 180, 100))
             status_rect = status.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 120))
+            self.surface.blit(status, status_rect)
+
+    def draw_camera_selection(self, camera_options: List[str], selected_index: int, message: str = ""):
+        """Draw a startup menu for selecting a camera."""
+        self.surface.fill(BACKGROUND)
+
+        title = self.fonts['title'].render("SELECT CAMERA", True, WHITE)
+        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 110))
+        self.surface.blit(title, title_rect)
+
+        subtitle = self.fonts['medium'].render("Choose the camera to use for tracking", True, (180, 200, 230))
+        subtitle_rect = subtitle.get_rect(center=(WINDOW_WIDTH // 2, 165))
+        self.surface.blit(subtitle, subtitle_rect)
+
+        start_y = 265
+        for i, option in enumerate(camera_options):
+            is_selected = i == selected_index
+            color = YELLOW if is_selected else WHITE
+            prefix = "> " if is_selected else "  "
+            label = self.fonts['large'].render(prefix + option, True, color)
+            label_rect = label.get_rect(center=(WINDOW_WIDTH // 2, start_y + i * 68))
+            self.surface.blit(label, label_rect)
+
+        instructions = self.fonts['medium'].render("Arrow keys to choose, ENTER to confirm, R to refresh", True, GRAY)
+        instructions_rect = instructions.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 130))
+        self.surface.blit(instructions, instructions_rect)
+
+        if message:
+            status = self.fonts['medium'].render(message, True, (255, 180, 100))
+            status_rect = status.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 80))
             self.surface.blit(status, status_rect)
 
     def draw_session_resume_banner(self, current_segment_info: Dict, segment_playtime_ms: int):
