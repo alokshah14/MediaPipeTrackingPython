@@ -110,9 +110,9 @@ HAND_MISSING_PAUSE_DELAY = 500  # ms before pausing when hands disappear
 
 # Hand visualization settings
 HAND_SCALE = 1.5
-PALM_RADIUS = 35
-FINGER_TIP_RADIUS = 14
-FINGER_JOINT_RADIUS = 7
+PALM_RADIUS = 40
+FINGER_TIP_RADIUS = 15
+FINGER_JOINT_RADIUS = 8
 
 from enum import Enum
 

@@ -249,10 +249,8 @@ class OpenGLHandRenderer:
         # Current palm for this specific model
         palm_pos = hand_model.get('palm_position', [0, 0, 0])
         
-        scale_factor = 0.95 if self.view_mode == "bottom" else 0.8
-        # Keep the palm present but less dominant than the fingers.
-        palm_multiplier = 0.28 if self.view_mode == "bottom" else 0.24
-        palm_radius = PALM_RADIUS * scale_factor * palm_multiplier
+        scale_factor = 0.8
+        palm_radius = PALM_RADIUS * scale_factor * 0.6
 
         glPushMatrix()
         # Rotate entire scene to look from above
@@ -260,7 +258,7 @@ class OpenGLHandRenderer:
 
         # Draw target "outline" box only once per hand (when drawing ghost)
         if is_ghost and self.view_mode == "center":
-            self._draw_target_box(palm_radius * 2.5)
+            self._draw_target_box(palm_radius * 1.5)
 
         # Calculate palm offset relative to reference origin
         rel_palm = [
@@ -340,9 +338,8 @@ class OpenGLHandRenderer:
                 if cross_mag > 0.001:
                     glRotatef(math.degrees(rot_angle), cross_prod[0], cross_prod[1], cross_prod[2])
 
-                # Keep fingers visibly thicker so they read better against the palm.
-                bone_multiplier = 0.92 if self.view_mode == "bottom" else 0.72
-                bone_radius = FINGER_JOINT_RADIUS * scale_factor * bone_multiplier
+                # Styling
+                bone_radius = FINGER_JOINT_RADIUS * scale_factor * 0.7
                 if is_ghost:
                     glEnable(GL_BLEND)
                     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -357,15 +354,12 @@ class OpenGLHandRenderer:
 
                 # Draw components
                 gluCylinder(self.quadric, bone_radius, bone_radius, bone_length, 6, 1)
-                gluSphere(self.quadric, bone_radius * 1.05, 6, 6)
+                gluSphere(self.quadric, bone_radius * 1.2, 6, 6)
 
                 if bone_type == 'distal':
                     glPushMatrix()
                     glTranslatef(0, 0, bone_length)
-                    if self.view_mode == "bottom":
-                        tip_rad = bone_radius * (1.6 if is_highlighted else 1.35)
-                    else:
-                        tip_rad = bone_radius * (1.45 if is_highlighted else 1.2)
+                    tip_rad = bone_radius * (2.5 if is_highlighted else 1.8)
                     if is_ghost: glColor4f(0.5, 0.8, 1.0, 0.4)
                     gluSphere(self.quadric, tip_rad, 8, 8)
                     glPopMatrix()
