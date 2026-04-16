@@ -112,7 +112,7 @@ class OpenGLHandRenderer:
             self.view_mode = mode
 
     def _screen_rect_for_logical_rect(self, x: float, y: float, width: float, height: float):
-        """Convert a top-left logical game rect to an OpenGL bottom-left screen rect."""
+        """Convert a top-left logical game rect to a fixed-aspect OpenGL rect."""
         scale = min(self.screen_width / WINDOW_WIDTH, self.screen_height / WINDOW_HEIGHT)
         scaled_game_width = WINDOW_WIDTH * scale
         scaled_game_height = WINDOW_HEIGHT * scale
@@ -124,6 +124,23 @@ class OpenGLHandRenderer:
         screen_width = max(1, int(round(width * scale)))
         screen_height = max(1, int(round(height * scale)))
         return screen_x, screen_y, screen_width, screen_height
+
+    def _full_screen_rect_for_logical_rect(self, x: float, y: float, width: float, height: float):
+        """Convert a top-left logical game rect to a full-screen scaled OpenGL rect."""
+        scale_x = self.screen_width / WINDOW_WIDTH
+        scale_y = self.screen_height / WINDOW_HEIGHT
+        screen_x = int(round(x * scale_x))
+        screen_y = int(round((WINDOW_HEIGHT - y - height) * scale_y))
+        screen_width = max(1, int(round(width * scale_x)))
+        screen_height = max(1, int(round(height * scale_y)))
+        return screen_x, screen_y, screen_width, screen_height
+
+    def _clear_logical_background_rect(self, y: float, height: float):
+        """Fill the full-width hand background before drawing fixed-aspect hand models."""
+        bg_x, bg_y, bg_width, bg_height = self._full_screen_rect_for_logical_rect(0, y, WINDOW_WIDTH, height)
+        glViewport(bg_x, bg_y, bg_width, bg_height)
+        glScissor(bg_x, bg_y, bg_width, bg_height)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
     def draw(self):
         """Draw the 3D hand visualization."""
@@ -153,6 +170,7 @@ class OpenGLHandRenderer:
             left_rect = self._screen_rect_for_logical_rect(0, logical_y, WINDOW_WIDTH // 2, 500)
             right_rect = self._screen_rect_for_logical_rect(WINDOW_WIDTH // 2, logical_y, WINDOW_WIDTH // 2, 500)
             glClearColor(0.01, 0.01, 0.03, 1.0)
+            self._clear_logical_background_rect(logical_y, 500)
         else:
             # Default bottom viewports.
             left_rect = self._screen_rect_for_logical_rect(0, self.hand_area_top, WINDOW_WIDTH // 2, self.hand_area_height)
@@ -160,6 +178,7 @@ class OpenGLHandRenderer:
                 WINDOW_WIDTH // 2, self.hand_area_top, WINDOW_WIDTH // 2, self.hand_area_height
             )
             glClearColor(0.05, 0.05, 0.1, 1.0)
+            self._clear_logical_background_rect(self.hand_area_top, self.hand_area_height)
 
         # Enable scissor test to limit clears to each viewport
         glEnable(GL_SCISSOR_TEST)
