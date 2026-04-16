@@ -1220,13 +1220,19 @@ class FingerInvaders:
 
     def _set_display_mode(self):
         if self.is_fullscreen:
-            pygame.display.set_mode((self.native_width, self.native_height), pygame.OPENGL|pygame.DOUBLEBUF|pygame.FULLSCREEN)
-            self.screen_width = self.native_width
-            self.screen_height = self.native_height
+            screen = pygame.display.set_mode((self.native_width, self.native_height), pygame.OPENGL|pygame.DOUBLEBUF|pygame.FULLSCREEN)
         else:
-            pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.OPENGL|pygame.DOUBLEBUF)
-            self.screen_width = WINDOW_WIDTH
-            self.screen_height = WINDOW_HEIGHT
+            screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.OPENGL|pygame.DOUBLEBUF)
+        self.screen_width, self.screen_height = screen.get_size()
+
+    def _get_scaled_game_viewport(self):
+        """Return a centered OpenGL viewport preserving the logical game aspect ratio."""
+        scale = min(self.screen_width / self.game_width, self.screen_height / self.game_height)
+        viewport_width = max(1, int(round(self.game_width * scale)))
+        viewport_height = max(1, int(round(self.game_height * scale)))
+        viewport_x = int(round((self.screen_width - viewport_width) / 2.0))
+        viewport_y = int(round((self.screen_height - viewport_height) / 2.0))
+        return viewport_x, viewport_y, viewport_width, viewport_height, scale
 
     def _toggle_fullscreen(self):
         """Toggle between fullscreen and windowed mode."""
@@ -1259,18 +1265,18 @@ class FingerInvaders:
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
-        scale_y = self.screen_height / self.game_height
-        hand_area_height_scaled = int((self.game_height - GAME_AREA_BOTTOM) * scale_y)
-        game_area_height_scaled = int(GAME_AREA_BOTTOM * scale_y)
+        viewport_x, viewport_y, viewport_width, viewport_height, scale = self._get_scaled_game_viewport()
+        hand_area_height_scaled = int(round((self.game_height - GAME_AREA_BOTTOM) * scale))
+        game_area_height_scaled = int(round(GAME_AREA_BOTTOM * scale))
         
         if area != "full":
             glEnable(GL_SCISSOR_TEST)
             if area == "hand":
-                glScissor(0, 0, self.screen_width, hand_area_height_scaled)
+                glScissor(viewport_x, viewport_y, viewport_width, hand_area_height_scaled)
             else:
-                glScissor(0, hand_area_height_scaled, self.screen_width, game_area_height_scaled)
+                glScissor(viewport_x, viewport_y + hand_area_height_scaled, viewport_width, game_area_height_scaled)
         
-        glViewport(0, 0, self.screen_width, self.screen_height)
+        glViewport(viewport_x, viewport_y, viewport_width, viewport_height)
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()

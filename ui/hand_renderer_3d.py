@@ -111,6 +111,20 @@ class OpenGLHandRenderer:
         if mode in ("bottom", "center"):
             self.view_mode = mode
 
+    def _screen_rect_for_logical_rect(self, x: float, y: float, width: float, height: float):
+        """Convert a top-left logical game rect to an OpenGL bottom-left screen rect."""
+        scale = min(self.screen_width / WINDOW_WIDTH, self.screen_height / WINDOW_HEIGHT)
+        scaled_game_width = WINDOW_WIDTH * scale
+        scaled_game_height = WINDOW_HEIGHT * scale
+        offset_x = (self.screen_width - scaled_game_width) / 2.0
+        offset_y = (self.screen_height - scaled_game_height) / 2.0
+
+        screen_x = int(round(offset_x + x * scale))
+        screen_y = int(round(offset_y + (WINDOW_HEIGHT - y - height) * scale))
+        screen_width = max(1, int(round(width * scale)))
+        screen_height = max(1, int(round(height * scale)))
+        return screen_x, screen_y, screen_width, screen_height
+
     def draw(self):
         """Draw the 3D hand visualization."""
         # Save only the GL state bits we actually modify (much faster than GL_ALL_ATTRIB_BITS)
@@ -133,29 +147,27 @@ class OpenGLHandRenderer:
         glLightfv(GL_LIGHT0, GL_DIFFUSE, (0.8, 0.8, 0.8, 1))
 
         # Scale viewport to actual screen size
-        scale_x = self.screen_width / WINDOW_WIDTH
-        scale_y = self.screen_height / WINDOW_HEIGHT
-
-        # Define the sub-viewports for left and right hands.
         if self.view_mode == "center":
-            # Larger viewports in center
-            viewport_width = int(WINDOW_WIDTH // 2 * scale_x)
-            viewport_height = int(500 * scale_y)
-            viewport_y = int((WINDOW_HEIGHT - 500) // 2 * scale_y)
+            # Larger viewports in center.
+            logical_y = (WINDOW_HEIGHT - 500) // 2
+            left_rect = self._screen_rect_for_logical_rect(0, logical_y, WINDOW_WIDTH // 2, 500)
+            right_rect = self._screen_rect_for_logical_rect(WINDOW_WIDTH // 2, logical_y, WINDOW_WIDTH // 2, 500)
             glClearColor(0.01, 0.01, 0.03, 1.0)
         else:
-            # Default bottom viewports
-            viewport_width = int(WINDOW_WIDTH // 2 * scale_x)
-            viewport_height = int(self.hand_area_height * scale_y)
-            viewport_y = int((WINDOW_HEIGHT - (self.hand_area_top + self.hand_area_height)) * scale_y)
+            # Default bottom viewports.
+            left_rect = self._screen_rect_for_logical_rect(0, self.hand_area_top, WINDOW_WIDTH // 2, self.hand_area_height)
+            right_rect = self._screen_rect_for_logical_rect(
+                WINDOW_WIDTH // 2, self.hand_area_top, WINDOW_WIDTH // 2, self.hand_area_height
+            )
             glClearColor(0.05, 0.05, 0.1, 1.0)
 
         # Enable scissor test to limit clears to each viewport
         glEnable(GL_SCISSOR_TEST)
 
         # --- Draw Left Hand Viewport ---
-        glViewport(0, viewport_y, viewport_width, viewport_height)
-        glScissor(0, viewport_y, viewport_width, viewport_height)
+        left_x, left_y, viewport_width, viewport_height = left_rect
+        glViewport(left_x, left_y, viewport_width, viewport_height)
+        glScissor(left_x, left_y, viewport_width, viewport_height)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         self._setup_camera_for_hand(viewport_width, viewport_height)
@@ -169,9 +181,9 @@ class OpenGLHandRenderer:
             self._draw_single_hand(self.hand_data.get('left'), 'left')
 
         # --- Draw Right Hand Viewport ---
-        right_x = int(WINDOW_WIDTH // 2 * scale_x)
-        glViewport(right_x, viewport_y, viewport_width, viewport_height)
-        glScissor(right_x, viewport_y, viewport_width, viewport_height)
+        right_x, right_y, viewport_width, viewport_height = right_rect
+        glViewport(right_x, right_y, viewport_width, viewport_height)
+        glScissor(right_x, right_y, viewport_width, viewport_height)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         self._setup_camera_for_hand(viewport_width, viewport_height)
