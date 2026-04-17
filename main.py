@@ -97,9 +97,11 @@ class ExtendedGameState:
 class FingerInvaders:
     """Main game application class."""
 
-    def __init__(self, force_simulation: bool = False, start_fullscreen: bool = True):
+    def __init__(self, force_simulation: bool = False, start_fullscreen: bool = True,
+                 camera_mount: str = "top"):
         """Initialize the game application."""
         self.force_simulation = force_simulation
+        self.camera_mount = camera_mount
         self.game_width = WINDOW_WIDTH
         self.game_height = WINDOW_HEIGHT
 
@@ -240,7 +242,7 @@ class FingerInvaders:
 
     def _set_camera_by_index(self, camera_index: int) -> bool:
         """Create and attach a MediaPipe controller for the chosen camera."""
-        controller = MediaPipeController(camera_index=camera_index)
+        controller = MediaPipeController(camera_index=camera_index, camera_mount=self.camera_mount)
         if controller.tracking_mode == "mediapipe":
             self._apply_tracking_controller(controller, is_test_mode=False)
             self.camera_selection_message = f"Using Camera {camera_index}"
@@ -1371,6 +1373,8 @@ def main():
                         help="Force keyboard simulation mode instead of webcam tracking")
     parser.add_argument("--windowed", action="store_true",
                         help="Start in windowed mode (default is fullscreen)")
+    parser.add_argument("--camera-mount", choices=("top", "underneath"), default="top",
+                        help="Camera orientation relative to the hands")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -1394,6 +1398,7 @@ def main():
     game = FingerInvaders(
         force_simulation=args.simulation,
         start_fullscreen=not args.windowed,
+        camera_mount=args.camera_mount,
     )
     game.run()
 

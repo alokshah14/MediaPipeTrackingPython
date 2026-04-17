@@ -31,8 +31,10 @@ except ImportError:
 class MediaPipeController:
     """Interface for webcam-based MediaPipe hand tracking."""
 
-    def __init__(self, camera_index: int = 0):
+    def __init__(self, camera_index: int = 0, camera_mount: str = "top"):
         self.camera_index = camera_index
+        self.camera_mount = camera_mount
+        self.vertical_inverted = camera_mount == "underneath"
         self.tracking_mode = "simulation"
         self.simulation_mode = True
         self.connected = False
@@ -201,7 +203,8 @@ class MediaPipeController:
         if not success:
             return
 
-        image = cv2.flip(image, 1)
+        if self.camera_mount != "underneath":
+            image = cv2.flip(image, 1)
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
         timestamp_ms = int(time.time() * 1000)
@@ -213,7 +216,10 @@ class MediaPipeController:
                 handedness_list = results.handedness[i] if i < len(results.handedness) else []
                 if handedness_list:
                     label = handedness_list[0].category_name
-                    hand_type = "right" if label == "Left" else "left"
+                    if self.camera_mount == "underneath":
+                        hand_type = "left" if label == "Left" else "right"
+                    else:
+                        hand_type = "right" if label == "Left" else "left"
                 else:
                     hand_type = "right" if i == 0 else "left"
 
@@ -230,8 +236,13 @@ class MediaPipeController:
         scale_factor = 400.0
         cx, cy, cz = hand_landmarks[9].x, hand_landmarks[9].y, hand_landmarks[9].z
 
+        if self.vertical_inverted:
+            y_transform = lambda lm_y: (lm_y - cy) * scale_factor + 150.0
+        else:
+            y_transform = lambda lm_y: (cy - lm_y) * scale_factor + 150.0
+
         landmark_points = [
-            ((lm.x - cx) * scale_factor, (cy - lm.y) * scale_factor + 150.0, (cz - lm.z) * scale_factor)
+            ((lm.x - cx) * scale_factor, y_transform(lm.y), (cz - lm.z) * scale_factor)
             for lm in hand_landmarks
         ]
 
