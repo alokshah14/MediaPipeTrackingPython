@@ -284,7 +284,9 @@ class GameUI:
             streak_render = self.fonts['medium'].render(streak_text, True, YELLOW)
             self.surface.blit(streak_render, (WINDOW_WIDTH // 2 - streak_render.get_width() // 2, 40))
 
-    def draw_time_hud(self, score: int, remaining_time: float, difficulty: str, streak: int = 0, speed_text: str = ""):
+    def draw_time_hud(self, score: int, remaining_time: float, difficulty: str, streak: int = 0,
+                      speed_text: str = "", weekly_playtime_percent: Optional[int] = None,
+                      weekly_playtime_label: Optional[str] = None):
         """
         Draw time-based HUD (no lives, shows remaining time).
 
@@ -308,6 +310,18 @@ class GameUI:
         score_value = self.fonts['large'].render(str(score), True, score_color)
         self.surface.blit(score_label, (20, 15))
         self.surface.blit(score_value, (20, 35))
+
+        if weekly_playtime_percent is not None:
+            bar_x, bar_y = 20, 70
+            bar_w, bar_h = 240, 14
+            pygame.draw.rect(self.surface, (35, 35, 55), (bar_x, bar_y, bar_w, bar_h), border_radius=7)
+            fill_w = int(bar_w * max(0, min(100, weekly_playtime_percent)) / 100)
+            fill_color = (100, 220, 120) if weekly_playtime_percent < 100 else (255, 190, 80)
+            pygame.draw.rect(self.surface, fill_color, (bar_x, bar_y, fill_w, bar_h), border_radius=7)
+            pygame.draw.rect(self.surface, (120, 120, 160), (bar_x, bar_y, bar_w, bar_h), 1, border_radius=7)
+            label_text = weekly_playtime_label or "Weekly play time"
+            pct_text = self.fonts['small'].render(f"{label_text}  {weekly_playtime_percent}%", True, WHITE)
+            self.surface.blit(pct_text, (bar_x, bar_y + 16))
 
         # Time Remaining
         mins = int(remaining_time // 60)
@@ -463,7 +477,9 @@ class MenuUI:
                        menu_message: str = "", menu_options_text: List[str] = None,
                        current_game_to_highlight: Optional[GameMode] = None,
                        player_name: str = "Default_Player", study_status: str = "",
-                       admin_playtime: Optional[str] = None):
+                       admin_playtime: Optional[str] = None,
+                       weekly_playtime_percent: Optional[int] = None,
+                       weekly_playtime_label: Optional[str] = None):
         """
         Draw the main menu.
 
@@ -475,6 +491,8 @@ class MenuUI:
             current_game_to_highlight: GameMode enum to highlight.
             player_name: Name of the current player.
             study_status: String describing study progress.
+            weekly_playtime_percent: Weekly play time completion percent (0-100).
+            weekly_playtime_label: Label describing the weekly play quota.
         """
         # If calibration already exists, skip "Calibrate" as the default selection
         # so participants don't accidentally start a recalibration on day 2+.
@@ -501,13 +519,24 @@ class MenuUI:
         if study_status:
             s_label = self.fonts['small'].render(study_status, True, (150, 150, 200))
             self.surface.blit(s_label, (20, 45))
+        if weekly_playtime_percent is not None:
+            bar_x, bar_y = 20, 68
+            bar_w, bar_h = 240, 18
+            pygame.draw.rect(self.surface, (35, 35, 55), (bar_x, bar_y, bar_w, bar_h), border_radius=8)
+            fill_w = int(bar_w * max(0, min(100, weekly_playtime_percent)) / 100)
+            fill_color = (100, 220, 120) if weekly_playtime_percent < 100 else (255, 190, 80)
+            pygame.draw.rect(self.surface, fill_color, (bar_x, bar_y, fill_w, bar_h), border_radius=8)
+            pygame.draw.rect(self.surface, (120, 120, 160), (bar_x, bar_y, bar_w, bar_h), 1, border_radius=8)
+            label_text = weekly_playtime_label or "Weekly play time"
+            pct_text = self.fonts['small'].render(f"{label_text}  {weekly_playtime_percent}%", True, WHITE)
+            self.surface.blit(pct_text, (bar_x, bar_y + 22))
         if admin_playtime:
             pt_label = self.fonts['small'].render(admin_playtime, True, (255, 200, 100))
             pt_rect = pt_label.get_rect(center=(WINDOW_WIDTH // 2, 68))
             self.surface.blit(pt_label, pt_rect)
 
         # Title
-        title = self.fonts['title'].render("MEDIAPIPE TRACKING GAMES", True, WHITE)
+        title = self.fonts['title'].render("TRACKING GAMES", True, WHITE)
         title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, 80))
         self.surface.blit(title, title_rect)
 

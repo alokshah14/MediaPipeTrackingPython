@@ -24,6 +24,8 @@ class PlayerManager:
         self.home_start_date: Optional[date] = None
         self.is_home_study = False
         self.game_playtime_seconds: Dict[str, float] = {}
+        self.home_week_playtime_seconds: float = 0.0
+        self.home_week_index: int = 0
         self.lab_games_completed: List[str] = []
         self.lab_session_scores: Dict[str, int] = {}
         self._migrate_legacy_config()
@@ -60,8 +62,11 @@ class PlayerManager:
                         self.home_start_date = date.fromisoformat(start_date_str)
                     self.is_home_study = data.get("is_home_study", False)
                     self.game_playtime_seconds = data.get("game_playtime_seconds", {})
+                    self.home_week_playtime_seconds = data.get("home_week_playtime_seconds", 0.0)
+                    self.home_week_index = data.get("home_week_index", 0)
                     self.lab_games_completed = data.get("lab_games_completed", [])
                     self.lab_session_scores = data.get("lab_session_scores", {})
+                    self._sync_home_week_progress()
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"Error loading player config: {e}")
         else:
@@ -69,6 +74,8 @@ class PlayerManager:
             self.home_start_date = None
             self.is_home_study = False
             self.game_playtime_seconds = {}
+            self.home_week_playtime_seconds = 0.0
+            self.home_week_index = 0
             self.lab_games_completed = []
             self.lab_session_scores = {}
 
@@ -80,6 +87,8 @@ class PlayerManager:
             "home_start_date": self.home_start_date.isoformat() if self.home_start_date else None,
             "is_home_study": self.is_home_study,
             "game_playtime_seconds": self.game_playtime_seconds,
+            "home_week_playtime_seconds": self.home_week_playtime_seconds,
+            "home_week_index": self.home_week_index,
             "lab_games_completed": self.lab_games_completed,
             "lab_session_scores": self.lab_session_scores,
         }
@@ -130,6 +139,8 @@ class PlayerManager:
     def start_home_study(self):
         self.home_start_date = datetime.now().date()
         self.is_home_study = True
+        self.home_week_playtime_seconds = 0.0
+        self.home_week_index = 0
         self.save_config()
 
     def add_game_playtime(self, game_mode_value: str, seconds: float):
@@ -138,6 +149,12 @@ class PlayerManager:
         self.game_playtime_seconds[game_mode_value] = (
             self.game_playtime_seconds.get(game_mode_value, 0.0) + seconds
         )
+        if self.is_home_study:
+            self._sync_home_week_progress()
+            self.home_week_playtime_seconds = min(
+                self.home_week_playtime_seconds + seconds,
+                self.get_weekly_playtime_limit_seconds()
+            )
         self.save_config()
 
     def get_playtime_display(self) -> Dict[str, str]:
@@ -153,6 +170,40 @@ class PlayerManager:
             return 0
         delta = datetime.now().date() - self.home_start_date
         return delta.days
+
+    def get_current_home_week_index(self) -> int:
+        if not self.home_start_date:
+            return 0
+        return max(0, self.get_days_since_start() // 7)
+
+    def get_weekly_playtime_limit_seconds(self) -> float:
+        return 100 * 60.0
+
+    def _sync_home_week_progress(self):
+        if not self.is_home_study or not self.home_start_date:
+            return
+        current_week = self.get_current_home_week_index()
+        if current_week != self.home_week_index:
+            self.home_week_index = current_week
+            self.home_week_playtime_seconds = 0.0
+
+    def get_home_week_playtime_seconds(self, live_extra_seconds: float = 0.0) -> float:
+        self._sync_home_week_progress()
+        return self.home_week_playtime_seconds + max(0.0, live_extra_seconds)
+
+    def get_home_week_playtime_percent(self, live_extra_seconds: float = 0.0) -> int:
+        limit = self.get_weekly_playtime_limit_seconds()
+        if limit <= 0:
+            return 0
+        percent = round((self.get_home_week_playtime_seconds(live_extra_seconds) / limit) * 100)
+        return max(0, min(100, int(percent)))
+
+    def get_home_week_playtime_label(self, live_extra_seconds: float = 0.0) -> str:
+        played_seconds = self.get_home_week_playtime_seconds(live_extra_seconds)
+        limit_seconds = self.get_weekly_playtime_limit_seconds()
+        played_minutes = played_seconds / 60.0
+        limit_minutes = limit_seconds / 60.0
+        return f"Weekly play time: {played_minutes:.1f}/{limit_minutes:.0f} min ({int(played_seconds)}s)"
 
     def get_study_status_text(self) -> str:
         if not self.is_home_study:

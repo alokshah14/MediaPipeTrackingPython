@@ -764,6 +764,9 @@ class FingerInvaders:
         state = self.game_engine.state
         if state == GameState.MENU:
             info = self.daily_session_manager.get_current_segment_info()
+            live_week_seconds = 0.0
+            if self.player_manager.is_home_study and self.game_engine.state != GameState.MENU:
+                live_week_seconds = max(0.0, (pygame.time.get_ticks() - self.session_start_time) / 1000.0)
 
             # Add admin mode indicator to study status
             study_status = self.player_manager.get_study_status_text()
@@ -793,6 +796,14 @@ class FingerInvaders:
                 player_name=self.player_manager.player_name,
                 study_status=study_status,
                 admin_playtime=playtime_display,
+                weekly_playtime_percent=(
+                    self.player_manager.get_home_week_playtime_percent(live_week_seconds)
+                    if self.player_manager.is_home_study else None
+                ),
+                weekly_playtime_label=(
+                    self.player_manager.get_home_week_playtime_label(live_week_seconds)
+                    if self.player_manager.is_home_study else None
+                ),
             )
         elif state == ExtendedGameState.SELECT_CAMERA:
             self.menu_ui.draw_camera_selection(
@@ -940,6 +951,9 @@ class FingerInvaders:
     def _render_finger_invaders(self):
         """Render the Finger Invaders game."""
         game_state = self.game_engine.get_game_state()
+        live_week_seconds = 0.0
+        if self.player_manager.is_home_study:
+            live_week_seconds = max(0.0, (pygame.time.get_ticks() - self.session_start_time) / 1000.0)
 
         # Background
         self.game_ui.draw_background()
@@ -966,7 +980,15 @@ class FingerInvaders:
             game_state['remaining_time'],
             game_state['difficulty'],
             game_state['streak'],
-            speed_text=f"x{speed_mult:.1f}"
+            speed_text=f"x{speed_mult:.1f}",
+            weekly_playtime_percent=(
+                self.player_manager.get_home_week_playtime_percent(live_week_seconds)
+                if self.player_manager.is_home_study else None
+            ),
+            weekly_playtime_label=(
+                self.player_manager.get_home_week_playtime_label(live_week_seconds)
+                if self.player_manager.is_home_study else None
+            ),
         )
         self.game_ui.draw_multi_press_warning()
 
@@ -982,11 +1004,22 @@ class FingerInvaders:
         self.egg_catcher_game.render(self.pygame_2d_surface)
 
         game_state = self.egg_catcher_game.get_game_state()
+        live_week_seconds = 0.0
+        if self.player_manager.is_home_study:
+            live_week_seconds = max(0.0, (pygame.time.get_ticks() - self.session_start_time) / 1000.0)
         self.game_ui.draw_time_hud(
             game_state['score'],
             game_state['remaining_time'],
             f"x{game_state['difficulty']:.1f}",
-            speed_text=f"x{game_state['difficulty']:.1f}"
+            speed_text=f"x{game_state['difficulty']:.1f}",
+            weekly_playtime_percent=(
+                self.player_manager.get_home_week_playtime_percent(live_week_seconds)
+                if self.player_manager.is_home_study else None
+            ),
+            weekly_playtime_label=(
+                self.player_manager.get_home_week_playtime_label(live_week_seconds)
+                if self.player_manager.is_home_study else None
+            ),
         )
         self.game_ui.draw_multi_press_warning()
 
@@ -1001,6 +1034,9 @@ class FingerInvaders:
         self.ping_pong_game.render(self.pygame_2d_surface)
 
         game_state = self.ping_pong_game.get_game_state()
+        live_week_seconds = 0.0
+        if self.player_manager.is_home_study:
+            live_week_seconds = max(0.0, (pygame.time.get_ticks() - self.session_start_time) / 1000.0)
         speed = 0.0
         if self.ping_pong_game.balls:
             speed = max((b.vx ** 2 + b.vy ** 2) ** 0.5 for b in self.ping_pong_game.balls)
@@ -1009,7 +1045,15 @@ class FingerInvaders:
             game_state['score'],
             game_state['remaining_time'],
             f"x{game_state['rally_count']}",
-            speed_text=f"{speed_pct * 100:.0f}%"
+            speed_text=f"{speed_pct * 100:.0f}%",
+            weekly_playtime_percent=(
+                self.player_manager.get_home_week_playtime_percent(live_week_seconds)
+                if self.player_manager.is_home_study else None
+            ),
+            weekly_playtime_label=(
+                self.player_manager.get_home_week_playtime_label(live_week_seconds)
+                if self.player_manager.is_home_study else None
+            ),
         )
         self.game_ui.draw_multi_press_warning()
 
