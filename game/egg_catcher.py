@@ -7,6 +7,7 @@ Time-based progression: Play for 5 minutes total to complete.
 """
 
 import pygame
+import math
 import random
 from typing import List, Dict
 from game.constants import (
@@ -125,6 +126,9 @@ class EggCatcher:
         # Track caught eggs per lane (for basket visual)
         self.basket_eggs: List[int] = [0] * NUM_LANES
 
+        # Visual effects for missed eggs
+        self.splatter_effects: List[Dict] = []
+
         # Statistics
         self.stats = {
             'total_eggs': 0,
@@ -173,6 +177,7 @@ class EggCatcher:
         self.correct_streak = 0
         self.target_fingers = []
         self.basket_eggs = [0] * NUM_LANES
+        self.splatter_effects = []
         self.last_spawn_time = pygame.time.get_ticks()
         self.stats = {
             'total_eggs': 0,
@@ -214,10 +219,14 @@ class EggCatcher:
 
         zone_top, zone_bottom = self.get_catch_zone_bounds()
 
-        # Update target fingers list (eggs in catch zone)
+        # Highlight the finger for every active egg so the player can prepare
+        # while it is still falling, not only once it reaches the catch zone.
         self.target_fingers = [
-            egg.finger_name for egg in self.eggs if egg.in_catch_zone
+            egg.finger_name for egg in self.eggs if egg.active
         ]
+
+        # Update splatter effects from missed eggs
+        self._update_splatter_effects(dt)
 
         # Check for finger presses
         pressed_fingers = self.hand_tracker.update()
@@ -230,14 +239,17 @@ class EggCatcher:
 
             if not egg.active:
                 # Egg fell past catch zone
-                if egg.egg_type != 'rotten':
-                    self.stats['eggs_missed'] += 1
-                    events['egg_missed'].append({
-                        'lane': egg.lane,
-                        'target_finger': egg.finger_name,
-                    })
-                    self.correct_streak = 0
-                    self._decrease_difficulty()
+                self.stats['eggs_missed'] += 1
+                events['egg_missed'].append({
+                    'lane': egg.lane,
+                    'target_finger': egg.finger_name,
+                    'egg_type': egg.egg_type,
+                    'x': egg.x,
+                    'y': zone_bottom,
+                })
+                self._add_splatter_effect(egg)
+                self.correct_streak = 0
+                self._decrease_difficulty()
                 self.eggs.remove(egg)
 
         return events
@@ -344,6 +356,40 @@ class EggCatcher:
         """Decrease difficulty after mistakes."""
         self.difficulty_multiplier = max(0.5, self.difficulty_multiplier - 0.05)
 
+    def _add_splatter_effect(self, egg: Egg):
+        """Add a short-lived egg splatter effect for a missed catch."""
+        color_map = {
+            'golden': (255, 220, 110),
+            'rotten': (120, 140, 70),
+        }
+        base_color = color_map.get(egg.egg_type, (255, 250, 240))
+        now = pygame.time.get_ticks()
+        splashes = []
+        for _ in range(8):
+            angle = random.uniform(0, math.tau)
+            speed = random.uniform(1.5, 5.0)
+            splashes.append({
+                'angle': angle,
+                'speed': speed,
+                'radius': random.uniform(2.0, 4.5),
+            })
+        self.splatter_effects.append({
+            'x': egg.x,
+            'y': egg.y,
+            'color': base_color,
+            'created_at': now,
+            'duration_ms': 650,
+            'splashes': splashes,
+        })
+
+    def _update_splatter_effects(self, dt: float):
+        """Age out splatter effects and keep the list bounded."""
+        now = pygame.time.get_ticks()
+        self.splatter_effects = [
+            effect for effect in self.splatter_effects
+            if now - effect['created_at'] < effect['duration_ms']
+        ]
+
     def render(self, surface: pygame.Surface):
         """Render the game."""
         zone_top, zone_bottom = self.get_catch_zone_bounds()
@@ -438,6 +484,35 @@ class EggCatcher:
         # Draw eggs
         for egg in self.eggs:
             egg.draw(surface)
+
+        # Draw missed egg splatters
+        now = pygame.time.get_ticks()
+        for effect in self.splatter_effects:
+            elapsed = now - effect['created_at']
+            progress = min(1.0, elapsed / effect['duration_ms'])
+            alpha = max(0, int(255 * (1.0 - progress)))
+            spread = 4 + progress * 28
+
+            splatter_surface = pygame.Surface((80, 80), pygame.SRCALPHA)
+            center = (40, 40)
+            color = (*effect['color'], alpha)
+
+            pygame.draw.ellipse(
+                splatter_surface,
+                color,
+                pygame.Rect(22, 28, 36, 22)
+            )
+            for droplet in effect['splashes']:
+                dx = math.cos(droplet['angle']) * spread * droplet['speed'] * 0.35
+                dy = math.sin(droplet['angle']) * spread * droplet['speed'] * 0.28 + progress * 10
+                radius = max(1, int(droplet['radius'] * (1.0 - 0.5 * progress)))
+                pygame.draw.circle(
+                    splatter_surface,
+                    color,
+                    (int(center[0] + dx), int(center[1] + dy)),
+                    radius,
+                )
+            surface.blit(splatter_surface, (effect['x'] - 40, effect['y'] - 40))
 
         # Draw "CATCH ZONE" label
         zone_font = pygame.font.Font(None, 28)

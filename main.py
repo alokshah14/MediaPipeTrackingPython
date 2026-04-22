@@ -196,6 +196,7 @@ class FingerInvaders:
         self.pause_start_tick = 0
         self.total_paused_ms = 0
         self.game_start_tick = 0  # Track when game actually started
+        self.hand_tracking_status = ""
 
         self._init_2d_opengl()
 
@@ -306,7 +307,7 @@ class FingerInvaders:
 
                 # Then draw 2D game UI and angle bars on top
                 self._draw_2d_overlay_with_opengl("game")
-                if self.game_engine.state != GameState.ANGLE_TEST:
+                if self.game_engine.state not in (GameState.ANGLE_TEST, ExtendedGameState.LAB_SESSION_MENU):
                     self._draw_2d_overlay_with_opengl("hand")
 
                 pygame.display.flip()
@@ -541,7 +542,8 @@ class FingerInvaders:
             else:
                 # Home study active — free play for admin
                 options.extend(ALL_GAME_MODES)
-            options.append("High Scores")
+            if "High Scores" not in options:
+                options.append("High Scores")
 
         # Always available in simulation mode for testing
         if self.is_test_mode:
@@ -552,7 +554,8 @@ class FingerInvaders:
                 options.extend(ALL_GAME_MODES)
             elif info["current_game"]:
                 options.append(info["current_game"])
-            options.append("High Scores")
+            if "High Scores" not in options:
+                options.append("High Scores")
 
         options.append("Quit")
         return options
@@ -657,6 +660,9 @@ class FingerInvaders:
             # Log to session file
             self._log_press(press_event, ec_state['score'], 0, f"x{ec_state['difficulty']:.1f}")
 
+        for _miss_event in events.get('egg_missed', []):
+            self.sound_manager.play_drop()
+
         # Check for game over
         if self.egg_catcher_game.game_over:
             self._session_natural_end = True
@@ -692,38 +698,55 @@ class FingerInvaders:
         """Check if hands are visible and in position, pause/resume accordingly."""
         # Skip if in simulation mode (no hand position requirements)
         if self.is_test_mode:
+            self.hand_tracking_status = ""
             return
 
         current_state = self.game_engine.state
-        
+
         # Only allow auto-pause from active game states or if already paused
         active_game_states = [
             GameState.FINGER_INVADERS, GameState.EGG_CATCHER, GameState.PING_PONG
         ]
-        
+
         if current_state not in active_game_states and current_state != GameState.PAUSED:
+            self.hand_tracking_status = ""
             return
 
         # Skip if no calibration (can't check positions)
         if not self.calibration.has_calibration():
+            self.hand_tracking_status = ""
             return
 
         # Give 2-second grace period after game starts before auto-pausing
         if current_state != GameState.PAUSED and pygame.time.get_ticks() - self.game_start_tick < 2000:
+            self.hand_tracking_status = "Checking hands..."
             return
 
-        hands_visible = self.hand_tracker.are_hands_visible()
+        hand_data = self.hand_tracker.latest_hand_data or {}
+        left_hand = hand_data.get('left')
+        right_hand = hand_data.get('right')
+        hands_visible = bool(left_hand or right_hand)
 
-        # If hands not visible and not already paused, pause the game
+        if not hands_visible:
+            self.hand_tracking_status = "Hands not detected"
+        else:
+            position_status = self.calibration.check_hand_positions(hand_data, tolerance=100.0)
+            left_ok = position_status.get('left_in_position', False)
+            right_ok = position_status.get('right_in_position', False)
+            if left_ok and right_ok:
+                self.hand_tracking_status = "Hands in position"
+            else:
+                self.hand_tracking_status = "Hands out of position"
+
+        # If hands are not detected and not already paused, pause the game immediately.
         if not hands_visible and current_state != GameState.PAUSED:
             self.game_engine.pause_game("Hands not detected")
             self.resume_countdown = None
             self.pause_start_tick = pygame.time.get_ticks()
             return
 
-        # If hands are visible but too far from calibrated position, pause
+        # If hands are visible but too far from calibrated position, pause.
         if hands_visible and current_state != GameState.PAUSED:
-            hand_data = self.hand_tracker.latest_hand_data
             position_status = self.calibration.check_hand_positions(hand_data, tolerance=100.0)
             if not position_status['both_in_position']:
                 self.game_engine.pause_game("Hands out of position")
@@ -731,9 +754,8 @@ class FingerInvaders:
                 self.pause_start_tick = pygame.time.get_ticks()
                 return
 
-        # If paused and hands are visible, check position
+        # If paused and hands are visible, check position.
         if current_state == GameState.PAUSED and hands_visible:
-            hand_data = self.hand_tracker.latest_hand_data
             position_status = self.calibration.check_hand_positions(hand_data, tolerance=80.0)
 
             if position_status['both_in_position']:
@@ -903,41 +925,40 @@ class FingerInvaders:
             # Draw hand position status
             hand_data_check = self.hand_tracker.latest_hand_data
             position_status = self.calibration.check_hand_positions(hand_data_check, tolerance=100.0)
+            left_visible = hand_data_check and hand_data_check.get('left') is not None
+            right_visible = hand_data_check and hand_data_check.get('right') is not None
+            left_distance = position_status.get('left_distance')
+            right_distance = position_status.get('right_distance')
 
-            # Draw simple status indicators at top
-            status_y = 270
-            for hand_type in ['left', 'right']:
-                in_pos = position_status.get(f'{hand_type}_in_position', False)
-                distance = position_status.get(f'{hand_type}_distance')
-
-                # Debug: Always show distance if available
-                if distance is not None:
-                    print(f"{hand_type.upper()} hand distance: {distance:.1f}mm")
-
-                if distance is not None:
-                    if distance <= 80:
-                        color = (100, 255, 100)
-                        status = "✓ IN POSITION"
-                    elif distance < 150:
-                        color = (255, 255, 100)
-                        status = f"{distance:.0f}mm away"
+            if not left_visible and not right_visible:
+                overall_status = "No hands detected"
+                overall_color = (255, 120, 120)
+            elif position_status.get('both_in_position', False):
+                overall_status = "Hands detected and in position"
+                overall_color = (100, 255, 100)
+            else:
+                status_bits = []
+                if left_visible:
+                    if left_distance is None:
+                        status_bits.append("Left: detected")
                     else:
-                        color = (255, 100, 100)
-                        status = f"{distance:.0f}mm away"
+                        status_bits.append(f"Left: {left_distance:.0f}mm away")
                 else:
-                    color = (150, 150, 150)
-                    status = "NOT DETECTED"
+                    status_bits.append("Left: not detected")
+                if right_visible:
+                    if right_distance is None:
+                        status_bits.append("Right: detected")
+                    else:
+                        status_bits.append(f"Right: {right_distance:.0f}mm away")
+                else:
+                    status_bits.append("Right: not detected")
+                overall_status = " | ".join(status_bits)
+                overall_color = (255, 220, 120)
 
-                hand_label = hand_type.upper() + " HAND:"
-                label_text = self.game_ui.fonts['small'].render(hand_label, True, (200, 200, 200))
-                status_text = self.game_ui.fonts['small'].render(status, True, color)
-
-                x_pos = self.game_width // 4 if hand_type == 'left' else 3 * self.game_width // 4
-                label_rect = label_text.get_rect(center=(x_pos, status_y))
-                status_rect = status_text.get_rect(center=(x_pos, status_y + 30))
-
-                self.pygame_2d_surface.blit(label_text, label_rect)
-                self.pygame_2d_surface.blit(status_text, status_rect)
+            status_font = self.game_ui.fonts['small']
+            status_text = status_font.render(f"Tracking: {overall_status}", True, overall_color)
+            status_rect = status_text.get_rect(center=(self.game_width // 2, 270))
+            self.pygame_2d_surface.blit(status_text, status_rect)
 
             # Draw countdown if resuming
             if self.resume_countdown is not None:

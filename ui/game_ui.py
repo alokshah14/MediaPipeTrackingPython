@@ -634,9 +634,10 @@ class MenuUI:
             'egg_catcher': 'Egg Catcher',
             'ping_pong': 'Ping Pong',
         }
-        start_y = 220
+        start_y = 205
+        row_gap = 78
         for i, gm in enumerate(lab_game_order):
-            y = start_y + i * 100
+            y = start_y + i * row_gap
             done = gm.value in lab_games_completed
             is_selected = selectable_game == gm
 
@@ -669,32 +670,29 @@ class MenuUI:
                 badge = self.fonts['small'].render(badge_text, True, badge_color)
             self.surface.blit(badge, (WINDOW_WIDTH // 2 - 240, y + 46))
 
-        # Bottom action
+        # Quit row, kept in the same selectable list so it remains reachable.
+        quit_y = start_y + len(lab_game_order) * row_gap
+        quit_box_color = (50, 30, 30) if quit_selected else (20, 20, 40)
+        quit_border = (220, 120, 120) if quit_selected else (80, 80, 120)
+        quit_text_color = (255, 180, 180) if quit_selected else GRAY
+        pygame.draw.rect(self.surface, quit_box_color, (WINDOW_WIDTH // 2 - 280, quit_y, 560, 62), border_radius=10)
+        pygame.draw.rect(self.surface, quit_border, (WINDOW_WIDTH // 2 - 280, quit_y, 560, 62), 2, border_radius=10)
+        quit_label = self.fonts['medium'].render("Quit to Main Menu", True, quit_text_color)
+        quit_rect = quit_label.get_rect(center=(WINDOW_WIDTH // 2, quit_y + 19))
+        self.surface.blit(quit_label, quit_rect)
+
+        quit_hint = self.fonts['small'].render("Press ENTER to return to main menu", True, WHITE if quit_selected else GRAY)
+        quit_hint_rect = quit_hint.get_rect(center=(WINDOW_WIDTH // 2, quit_y + 43))
+        self.surface.blit(quit_hint, quit_hint_rect)
+
+        # Bottom guidance
         all_done = selectable_game is None
         if all_done:
-            msg1 = self.fonts['medium'].render("All games complete!", True, (100, 255, 100))
-            msg2 = self.fonts['small'].render("Press ENTER to go to menu  →  Select 'Send Home'", True, WHITE)
-            msg3 = self.fonts['small'].render("Press ESC to return to menu", True, GRAY)
-            self.surface.blit(msg1, (WINDOW_WIDTH // 2 - msg1.get_width() // 2, 560))
-            self.surface.blit(msg2, (WINDOW_WIDTH // 2 - msg2.get_width() // 2, 600))
-            self.surface.blit(msg3, (WINDOW_WIDTH // 2 - msg3.get_width() // 2, 630))
+            msg = self.fonts['small'].render("All games complete. Select Quit to exit the lab session.", True, (100, 255, 100))
         else:
             next_name = game_names.get(selectable_game.value, selectable_game.value)
-            if quit_selected:
-                msg = self.fonts['medium'].render("Press ENTER to return to main menu", True, WHITE)
-            else:
-                msg = self.fonts['medium'].render(f"Use UP/DOWN, ENTER to start  {next_name}", True, WHITE)
-            self.surface.blit(msg, (WINDOW_WIDTH // 2 - msg.get_width() // 2, 560))
-
-            quit_box_y = 620
-            quit_box_color = (50, 30, 30) if quit_selected else (20, 20, 40)
-            quit_border = (220, 120, 120) if quit_selected else (80, 80, 120)
-            quit_text_color = (255, 180, 180) if quit_selected else GRAY
-            pygame.draw.rect(self.surface, quit_box_color, (WINDOW_WIDTH // 2 - 160, quit_box_y, 320, 50), border_radius=10)
-            pygame.draw.rect(self.surface, quit_border, (WINDOW_WIDTH // 2 - 160, quit_box_y, 320, 50), 2, border_radius=10)
-            quit_text = self.fonts['small'].render("Quit to Main Menu", True, quit_text_color)
-            quit_rect = quit_text.get_rect(center=(WINDOW_WIDTH // 2, quit_box_y + 25))
-            self.surface.blit(quit_text, quit_rect)
+            msg = self.fonts['small'].render(f"Use UP/DOWN, ENTER to start  {next_name}", True, WHITE)
+        self.surface.blit(msg, (WINDOW_WIDTH // 2 - msg.get_width() // 2, 560))
 
     def draw_text_input(self, title: str, current_text: str, subtitle: str = ""):
         """Draw a text input screen."""

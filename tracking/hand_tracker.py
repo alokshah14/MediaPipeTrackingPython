@@ -137,7 +137,7 @@ class HandTracker:
                 self.finger_relative_y[full_name] = relative_y
 
                 # Calculate finger flexion angle from bone directions
-                angle = self._calculate_flexion_angle_for_mode(finger_data)
+                angle = self._calculate_flexion_angle_for_mode(finger_name, finger_data)
                 if angle is not None:
                     self.finger_angles[full_name] = angle
 
@@ -442,8 +442,24 @@ class HandTracker:
         """Get current angle calculation mode."""
         return self.angle_calculation_mode
 
-    def _calculate_flexion_angle_for_mode(self, finger_data: Dict) -> Optional[float]:
+    def _calculate_flexion_angle_for_mode(self, finger_name: str, finger_data: Dict) -> Optional[float]:
         """Calculate flexion angle based on the current mode."""
+        # Thumb geometry is different enough from the other fingers that the
+        # generic MCP/PIP pairs can be unstable. Use the thumb's first two
+        # bends explicitly so its curl is tracked more reliably.
+        if finger_name == "thumb":
+            base = finger_data.get('metacarpal_direction')
+            mid = finger_data.get('proximal_direction')
+            tip = finger_data.get('intermediate_direction')
+            if self.angle_calculation_mode == "mcp":
+                if base and mid:
+                    return self._calculate_flexion_angle(base, mid)
+            if mid and tip:
+                return self._calculate_flexion_angle(mid, tip)
+            if base and mid:
+                return self._calculate_flexion_angle(base, mid)
+            return None
+
         if self.angle_calculation_mode == "mcp":
             metacarpal = finger_data.get('metacarpal_direction')
             proximal = finger_data.get('proximal_direction')
